@@ -18,20 +18,19 @@
 
 ### Documentation Strategy
 
-**Available Docs** (akka-context directory):
-- `java/agents.html.md` + `/prompt`, `/calling`, `/memory`, `/structured`, `/failures`, `/extending`, `/streaming`, `/orchestrating`, `/guardrails`, `/evaluating`, `/testing`
-- `getting-started/planner-agent/dynamic-team.html.md` - Dynamic orchestration
-- `java/event-sourced-entities.html.md`, `java/key-value-entities.html.md`
-- `java/views.html.md`, `java/workflows.html.md`, `java/consuming-producing.html.md`
-- `java/http-endpoints.html.md`, `java/grpc-endpoints.html.md`
-- `java/timed-actions.html.md`, `java/setup-and-dependency-injection.html.md`
-- `ai-coding-assistant-guidelines.html.md`
+**Available Docs** (https://doc.akka.io):
+- `java/agents.html` + subpages: prompt, calling, memory, structured, failures, extending, streaming, orchestrating, guardrails, evaluating, testing
+- `getting-started/planner-agent/dynamic-team.html` - Dynamic orchestration
+- `java/event-sourced-entities.html`, `java/key-value-entities.html`
+- `java/views.html`, `java/workflows.html`, `java/consuming-producing.html`
+- `java/http-endpoints.html`, `java/grpc-endpoints.html`
+- `java/timed-actions.html`, `java/setup-and-dependency-injection.html`
 
 **MANDATORY Reads** (first time per session):
-- Workflows → Read `workflows.html.md` BEFORE coding (compensation, recovery, orchestration)
-- Agents → Read `agents.html.md` BEFORE coding (LLM, tools, streaming, memory)
-- First-time component → Read relevant doc
-- Uncertain features or API errors → Read relevant doc
+- Workflows → Read https://doc.akka.io/java/workflows.html BEFORE coding
+- Agents → Read https://doc.akka.io/java/agents.html BEFORE coding
+- First-time component → Read relevant doc from doc.akka.io
+- Uncertain features or API errors → WebFetch doc.akka.io URL
 
 **Use Memorized Patterns For:**
 - Similar components after doc read once in session
