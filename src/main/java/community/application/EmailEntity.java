@@ -11,16 +11,21 @@ import community.domain.Email;
 @ComponentId("email")
 public class EmailEntity extends EventSourcedEntity<EmailEntity.State, EmailEntity.Event> {
 
-    public record State() {}
+    public record State(Email email) {}
 
     public sealed interface Event {
         record EmailReceived(Email email) implements Event {}
     }
 
     @Override
+    public State emptyState() {
+        return new State(null);
+    }
+
+    @Override
     public State applyEvent(Event event) {
         return switch (event) {
-            case Event.EmailReceived ignored -> new State();
+            case Event.EmailReceived emailReceived -> new State(emailReceived.email());
         };
     }
 
