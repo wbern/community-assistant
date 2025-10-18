@@ -37,4 +37,24 @@ public class EmailEntityTest {
             (EmailEntity.Event.EmailReceived) result.getAllEvents().get(0);
         assertEquals("resident@community.com", event.email().getFrom());
     }
+
+    @Test
+    public void shouldStoreEmailInStateAfterReceiving() {
+        EventSourcedTestKit<EmailEntity.State, EmailEntity.Event, EmailEntity> testKit =
+            EventSourcedTestKit.of(EmailEntity::new);
+
+        Email email = Email.create(
+            "resident@community.com",
+            "Broken elevator",
+            "The elevator is broken"
+        );
+
+        testKit.call(e -> e.receiveEmail(email));
+
+        // Verify state now contains the email
+        EmailEntity.State state = testKit.getState();
+        assertNotNull(state.email());
+        assertEquals("resident@community.com", state.email().getFrom());
+        assertEquals("Broken elevator", state.email().getSubject());
+    }
 }
