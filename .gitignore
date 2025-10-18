@@ -28,3 +28,5 @@ akka-context/
 .git-bak
 
 .github-bak
+
+.claude/settings.local.json
