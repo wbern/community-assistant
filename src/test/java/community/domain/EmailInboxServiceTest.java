@@ -20,4 +20,16 @@ public class EmailInboxServiceTest {
 
         assertNotNull(emails);
     }
+
+    @Test
+    public void shouldReturnTestEmailsFromMockService() {
+        MockEmailInboxService mockService = new MockEmailInboxService();
+
+        List<Email> emails = mockService.fetchUnprocessedEmails();
+
+        assertFalse(emails.isEmpty());
+        assertEquals(2, emails.size());
+        assertEquals("resident@community.com", emails.get(0).getFrom());
+        assertEquals("Broken elevator", emails.get(0).getSubject());
+    }
 }
