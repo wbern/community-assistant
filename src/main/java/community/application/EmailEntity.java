@@ -35,4 +35,8 @@ public class EmailEntity extends EventSourcedEntity<EmailEntity.State, EmailEnti
             .persist(emailReceived)
             .thenReply(newState -> "Email received");
     }
+
+    public ReadOnlyEffect<Email> getEmail() {
+        return effects().reply(currentState().email());
+    }
 }
