@@ -2,6 +2,11 @@ package community.application;
 
 import akka.javasdk.annotations.Component;
 import akka.javasdk.workflow.Workflow;
+import community.domain.Email;
+import community.domain.EmailInboxService;
+import community.domain.MockEmailInboxService;
+
+import java.util.List;
 
 /**
  * Workflow for processing emails from inbox.
@@ -17,6 +22,9 @@ public class EmailProcessingWorkflow extends Workflow<EmailProcessingWorkflow.St
     public record ProcessResult(int emailsProcessed) {}
 
     public Effect<ProcessResult> processInbox(ProcessInboxCmd cmd) {
-        return effects().reply(new ProcessResult(0));
+        EmailInboxService inboxService = new MockEmailInboxService();
+        List<Email> emails = inboxService.fetchUnprocessedEmails();
+
+        return effects().reply(new ProcessResult(emails.size()));
     }
 }
