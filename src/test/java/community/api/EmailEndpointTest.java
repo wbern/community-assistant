@@ -24,8 +24,9 @@ public class EmailEndpointTest extends TestKitSupport {
         httpClient.POST("/process-inbox")
             .invoke();
 
-        // Assert: Verify first email was persisted to EmailEntity
-        var email1 = componentClient.forEventSourcedEntity("resident@community.com")
+        // Assert: Verify first email was persisted to EmailEntity using messageId
+        // MockEmailInboxService returns emails with IDs "msg-elevator-001" and "msg-elevator-002"
+        var email1 = componentClient.forEventSourcedEntity("msg-elevator-001")
             .method(EmailEntity::getEmail)
             .invoke();
 
@@ -33,13 +34,13 @@ public class EmailEndpointTest extends TestKitSupport {
         assertEquals("resident@community.com", email1.getFrom());
         assertEquals("Broken elevator", email1.getSubject());
 
-        // Assert: Verify second email was persisted
-        var email2 = componentClient.forEventSourcedEntity("tenant@community.com")
+        // Assert: Verify second email was persisted using its messageId
+        var email2 = componentClient.forEventSourcedEntity("msg-elevator-002")
             .method(EmailEntity::getEmail)
             .invoke();
 
         assertNotNull(email2);
-        assertEquals("tenant@community.com", email2.getFrom());
-        assertEquals("Noise complaint", email2.getSubject());
+        assertEquals("resident@community.com", email2.getFrom());
+        assertEquals("Elevator still broken", email2.getSubject());
     }
 }

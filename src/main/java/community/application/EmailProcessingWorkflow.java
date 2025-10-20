@@ -5,8 +5,10 @@ import akka.javasdk.client.ComponentClient;
 import akka.javasdk.workflow.Workflow;
 import community.domain.Email;
 import community.domain.EmailInboxService;
+import community.domain.EmailTags;
 import community.domain.MockEmailInboxService;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -26,19 +28,35 @@ public class EmailProcessingWorkflow extends Workflow<EmailProcessingWorkflow.St
 
     public record ProcessInboxCmd() {}
 
-    public record ProcessResult(int emailsProcessed) {}
+    public record ProcessResult(int emailsProcessed, List<EmailTags> emailTags) {}
 
     public Effect<ProcessResult> processInbox(ProcessInboxCmd cmd) {
         EmailInboxService inboxService = new MockEmailInboxService();
         List<Email> emails = inboxService.fetchUnprocessedEmails();
 
-        // Persist each email to EmailEntity
+        List<EmailTags> allTags = new ArrayList<>();
+
+        // Persist each email to EmailEntity and generate tags
         for (Email email : emails) {
-            componentClient.forEventSourcedEntity(email.getFrom())
+            // Persist email using messageId as entity ID (allows multiple emails from same sender)
+            componentClient.forEventSourcedEntity(email.getMessageId())
                 .method(EmailEntity::receiveEmail)
                 .invoke(email);
+
+            // Generate tags using AI agent
+            EmailTags tags = componentClient.forAgent()
+                .inSession(email.getMessageId())  // Use messageId as session ID for consistency
+                .method(EmailTaggingAgent::tagEmail)
+                .invoke(email);
+
+            // Persist tags to EmailEntity using messageId
+            componentClient.forEventSourcedEntity(email.getMessageId())
+                .method(EmailEntity::addTags)
+                .invoke(tags);
+
+            allTags.add(tags);
         }
 
-        return effects().reply(new ProcessResult(emails.size()));
+        return effects().reply(new ProcessResult(emails.size(), allTags));
     }
 }

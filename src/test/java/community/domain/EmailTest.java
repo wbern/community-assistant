@@ -14,15 +14,17 @@ public class EmailTest {
     @Test
     public void shouldCreateEmailFromIncomingMessage() {
         // GIVEN
+        String messageId = "550e8400-e29b-41d4-a716-446655440000";
         String from = "resident@community.com";
         String subject = "Broken elevator";
         String body = "The elevator in building A is not working";
 
         // WHEN
-        Email email = Email.create(from, subject, body);
+        Email email = Email.create(messageId, from, subject, body);
 
         // THEN
         assertNotNull(email);
+        assertEquals(messageId, email.getMessageId());
         assertEquals(from, email.getFrom());
         assertEquals(subject, email.getSubject());
         assertEquals(body, email.getBody());
@@ -30,10 +32,26 @@ public class EmailTest {
     }
 
     @Test
+    public void shouldRejectNullMessageId() {
+        // WHEN & THEN
+        assertThrows(IllegalArgumentException.class, () -> {
+            Email.create(null, "from@example.com", "Subject", "Body");
+        });
+    }
+
+    @Test
+    public void shouldRejectEmptyMessageId() {
+        // WHEN & THEN
+        assertThrows(IllegalArgumentException.class, () -> {
+            Email.create("", "from@example.com", "Subject", "Body");
+        });
+    }
+
+    @Test
     public void shouldRejectNullFrom() {
         // WHEN & THEN
         assertThrows(IllegalArgumentException.class, () -> {
-            Email.create(null, "Subject", "Body");
+            Email.create("msg-123", null, "Subject", "Body");
         });
     }
 
@@ -41,7 +59,7 @@ public class EmailTest {
     public void shouldRejectEmptyFrom() {
         // WHEN & THEN
         assertThrows(IllegalArgumentException.class, () -> {
-            Email.create("", "Subject", "Body");
+            Email.create("msg-123", "", "Subject", "Body");
         });
     }
 
@@ -49,7 +67,7 @@ public class EmailTest {
     public void shouldRejectNullSubject() {
         // WHEN & THEN
         assertThrows(IllegalArgumentException.class, () -> {
-            Email.create("from@example.com", null, "Body");
+            Email.create("msg-123", "from@example.com", null, "Body");
         });
     }
 
@@ -57,17 +75,18 @@ public class EmailTest {
     public void shouldRejectNullBody() {
         // WHEN & THEN
         assertThrows(IllegalArgumentException.class, () -> {
-            Email.create("from@example.com", "Subject", null);
+            Email.create("msg-123", "from@example.com", "Subject", null);
         });
     }
 
     @Test
     public void shouldAllowEmptySubjectAndBody() {
         // GIVEN
+        String messageId = "msg-123";
         String from = "resident@community.com";
 
         // WHEN
-        Email email = Email.create(from, "", "");
+        Email email = Email.create(messageId, from, "", "");
 
         // THEN
         assertNotNull(email);

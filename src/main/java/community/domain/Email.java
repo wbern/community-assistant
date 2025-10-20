@@ -10,19 +10,27 @@ public class Email {
         UNPROCESSED
     }
 
+    private final String messageId;
     private final String from;
     private final String subject;
     private final String body;
     private final Status status;
 
-    private Email(String from, String subject, String body, Status status) {
+    private Email(String messageId, String from, String subject, String body, Status status) {
+        this.messageId = messageId;
         this.from = from;
         this.subject = subject;
         this.body = body;
         this.status = status;
     }
 
-    public static Email create(String from, String subject, String body) {
+    public static Email create(String messageId, String from, String subject, String body) {
+        if (messageId == null) {
+            throw new IllegalArgumentException();
+        }
+        if (messageId.isEmpty()) {
+            throw new IllegalArgumentException();
+        }
         if (from == null) {
             throw new IllegalArgumentException();
         }
@@ -36,7 +44,11 @@ public class Email {
             throw new IllegalArgumentException();
         }
 
-        return new Email(from, subject, body, Status.UNPROCESSED);
+        return new Email(messageId, from, subject, body, Status.UNPROCESSED);
+    }
+
+    public String getMessageId() {
+        return messageId;
     }
 
     public String getFrom() {

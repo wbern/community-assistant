@@ -30,3 +30,4 @@ akka-context/
 .github-bak
 
 .claude/settings.local.json
+*.gitignore.json
