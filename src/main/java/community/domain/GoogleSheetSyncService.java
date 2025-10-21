@@ -35,7 +35,7 @@ public class GoogleSheetSyncService implements SheetSyncService {
     private static final String SHEET_NAME = "Emails"; // Default sheet name
     private static final List<String> SCOPES = Collections.singletonList(SheetsScopes.SPREADSHEETS);
 
-    private final Sheets sheetsService;
+    final Sheets sheetsService; // Package-private for testing
     private final String spreadsheetId;
     private final Integer sheetId; // Cached sheet ID for batch operations
 
@@ -346,6 +346,28 @@ public class GoogleSheetSyncService implements SheetSyncService {
         // This avoids rate limiting by reducing external calls from N to 1 batch
         for (SheetRow row : rowList) {
             upsertRow(row.messageId(), row);
+        }
+    }
+
+    /**
+     * Count number of data rows in the sheet (excluding header).
+     * Useful for testing and monitoring.
+     */
+    public int countRows() {
+        try {
+            String range = SHEET_NAME + "!A:A";
+            ValueRange response = sheetsService.spreadsheets().values()
+                .get(spreadsheetId, range)
+                .execute();
+
+            if (response.getValues() == null || response.getValues().isEmpty()) {
+                return 0;
+            }
+
+            // Subtract 1 for header row
+            return response.getValues().size() - 1;
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to count rows", e);
         }
     }
 }

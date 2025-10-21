@@ -50,6 +50,7 @@ public class Bootstrap implements ServiceSetup {
       // Only load specific variables
       loadEnvVar(dotenv, "GMAIL_USER_EMAIL");
       loadEnvVar(dotenv, "GOOGLE_APPLICATION_CREDENTIALS");
+      loadEnvVar(dotenv, "SPREADSHEET_ID");
       loadEnvVar(dotenv, "OPENAI_API_KEY");
 
       log.info("Loaded .env file");
@@ -98,8 +99,24 @@ public class Bootstrap implements ServiceSetup {
           return (T) new EmailClient();
         }
         if (aClass.equals(SheetSyncService.class)) {
-          // TODO: Replace with real GoogleSheetSyncService in Cycle 9
-          return (T) MOCK_SHEET_SERVICE;
+          // Use real GoogleSheetSyncService if spreadsheet ID is available, otherwise mock
+          String spreadsheetId = System.getenv("SPREADSHEET_ID");
+          if (spreadsheetId == null) {
+            spreadsheetId = System.getProperty("SPREADSHEET_ID");
+          }
+
+          if (spreadsheetId != null && !spreadsheetId.isEmpty()) {
+            try {
+              log.info("Initializing GoogleSheetSyncService with spreadsheet ID: {}", spreadsheetId);
+              return (T) new community.domain.GoogleSheetSyncService(spreadsheetId);
+            } catch (Exception e) {
+              log.warn("Failed to initialize GoogleSheetSyncService, falling back to MockSheetSyncService", e);
+              return (T) MOCK_SHEET_SERVICE;
+            }
+          } else {
+            log.info("Using MockSheetSyncService (SPREADSHEET_ID not set)");
+            return (T) MOCK_SHEET_SERVICE;
+          }
         }
         if (aClass.equals(EmailInboxService.class)) {
           // Use real Gmail if credentials are available, otherwise mock

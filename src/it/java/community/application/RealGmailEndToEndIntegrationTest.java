@@ -59,6 +59,11 @@ public class RealGmailEndToEndIntegrationTest extends TestKitSupport {
             if (credentials != null && !credentials.isEmpty() && System.getenv("GOOGLE_APPLICATION_CREDENTIALS") == null) {
                 System.setProperty("GOOGLE_APPLICATION_CREDENTIALS", credentials);
             }
+
+            String spreadsheetId = dotenv.get("SPREADSHEET_ID");
+            if (spreadsheetId != null && !spreadsheetId.isEmpty() && System.getenv("SPREADSHEET_ID") == null) {
+                System.setProperty("SPREADSHEET_ID", spreadsheetId);
+            }
         } catch (Exception e) {
             // Ignore - environment variables may already be set
         }
@@ -191,7 +196,7 @@ public class RealGmailEndToEndIntegrationTest extends TestKitSupport {
 
     @Test
     void shouldSyncRealEmailsToGoogleSheets() {
-        // GIVEN: A workflow and mock sheet service
+        // GIVEN: A workflow and real sheet service
         String workflowId = "real-gmail-sheets-" + System.currentTimeMillis();
         Instant threeDaysAgo = Instant.now().minus(java.time.Duration.ofDays(3));
 
@@ -214,21 +219,48 @@ public class RealGmailEndToEndIntegrationTest extends TestKitSupport {
         if (result.emailsProcessed() > 0) {
             System.out.println("📧 Processing " + result.emailsProcessed() + " emails through sheet sync");
 
-            // THEN: Wait for events to flow through consumer → buffer → sheet
-            // Give it time for async event processing
-            Awaitility.await()
-                .atMost(15, TimeUnit.SECONDS)
-                .pollInterval(500, TimeUnit.MILLISECONDS)
-                .untilAsserted(() -> {
-                    // Verify at least one email made it to the mock sheet service
-                    var mockSheetService = com.example.Bootstrap.getMockSheetService();
-                    int rowCount = mockSheetService.getRowCount();
+            // THEN: Wait for events to flow through consumer → buffer → flush to Google Sheets
+            // Note: SheetSyncFlushAction runs every 10 seconds, so we need to wait up to 15 seconds
+            String spreadsheetId = System.getProperty("SPREADSHEET_ID");
+            if (spreadsheetId != null && !spreadsheetId.isEmpty()) {
+                System.out.println("✅ Verifying sync to real Google Sheets (ID: " + spreadsheetId + ")");
 
-                    assertTrue(rowCount > 0,
-                        "At least one email should be synced to sheets");
+                // Clear the sheet first to ensure clean state
+                var sheetService = new community.domain.GoogleSheetSyncService(spreadsheetId);
+                sheetService.clearAllRows();
+                System.out.println("🧹 Cleared Google Sheet for clean test");
 
-                    System.out.println("✅ " + rowCount + " emails synced to Google Sheets (mock)");
-                });
+                // Wait for buffer to flush (happens every 10 seconds)
+                Awaitility.await()
+                    .atMost(20, TimeUnit.SECONDS)
+                    .pollInterval(2, TimeUnit.SECONDS)
+                    .untilAsserted(() -> {
+                        // Count rows in the sheet
+                        int rowCount = sheetService.countRows();
+
+                        System.out.println("⏳ Waiting for flush... Current rows in sheet: " + rowCount);
+                        assertTrue(rowCount > 0,
+                            "At least one email should be flushed to Google Sheets");
+                    });
+
+                System.out.println("✅ Emails synced to real Google Sheets");
+            } else {
+                System.out.println("⚠️  SPREADSHEET_ID not set, falling back to mock verification");
+
+                // Fallback to mock verification
+                Awaitility.await()
+                    .atMost(15, TimeUnit.SECONDS)
+                    .pollInterval(500, TimeUnit.MILLISECONDS)
+                    .untilAsserted(() -> {
+                        var mockSheetService = com.example.Bootstrap.getMockSheetService();
+                        int rowCount = mockSheetService.getRowCount();
+
+                        assertTrue(rowCount > 0,
+                            "At least one email should be synced to sheets");
+
+                        System.out.println("✅ " + rowCount + " emails synced to Google Sheets (mock)");
+                    });
+            }
         } else {
             System.out.println("ℹ️  No emails to sync (none in last 3 days)");
         }
