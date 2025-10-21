@@ -32,18 +32,26 @@ public class Bootstrap implements ServiceSetup {
   private final ComponentClient componentClient;
   private final TimerScheduler timerScheduler;
 
+  private static void loadEnvVar(Dotenv dotenv, String key) {
+    String value = dotenv.get(key);
+    if (value != null && !value.isEmpty() && System.getenv(key) == null) {
+      System.setProperty(key, value);
+    }
+  }
+
   public Bootstrap(Config config, ComponentClient componentClient, TimerScheduler timerScheduler) {
     // Load .env file if it exists (for local development)
+    // Only load specific variables we need to avoid config conflicts
     try {
       Dotenv dotenv = Dotenv.configure()
           .ignoreIfMissing()
           .load();
-      dotenv.entries().forEach(entry -> {
-        if (System.getenv(entry.getKey()) == null) {
-          // Only set if not already set by environment
-          System.setProperty(entry.getKey(), entry.getValue());
-        }
-      });
+
+      // Only load specific variables
+      loadEnvVar(dotenv, "GMAIL_USER_EMAIL");
+      loadEnvVar(dotenv, "GOOGLE_APPLICATION_CREDENTIALS");
+      loadEnvVar(dotenv, "OPENAI_API_KEY");
+
       log.info("Loaded .env file");
     } catch (Exception e) {
       log.debug("No .env file found or error loading it (this is fine): {}", e.getMessage());

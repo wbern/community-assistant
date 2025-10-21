@@ -60,7 +60,6 @@
           <environmentVariables>
             <GOOGLE_APPLICATION_CREDENTIALS>${project.basedir}/credentials.gitignore.json</GOOGLE_APPLICATION_CREDENTIALS>
             <TEST_SPREADSHEET_ID>1ILH_bjTDuYzopIqtchL6P5dzQ8Jvp1smpOPI1cpIKaM</TEST_SPREADSHEET_ID>
-            <GMAIL_USER_EMAIL>${env.GMAIL_USER_EMAIL}</GMAIL_USER_EMAIL>
           </environmentVariables>
         </configuration>
       </plugin>
@@ -71,7 +70,6 @@
           <environmentVariables>
             <GOOGLE_APPLICATION_CREDENTIALS>${project.basedir}/credentials.gitignore.json</GOOGLE_APPLICATION_CREDENTIALS>
             <TEST_SPREADSHEET_ID>1ILH_bjTDuYzopIqtchL6P5dzQ8Jvp1smpOPI1cpIKaM</TEST_SPREADSHEET_ID>
-            <GMAIL_USER_EMAIL>${env.GMAIL_USER_EMAIL}</GMAIL_USER_EMAIL>
           </environmentVariables>
         </configuration>
       </plugin>
