@@ -1,5 +1,7 @@
 package community.domain;
 
+import java.time.Instant;
+
 /**
  * Domain model representing an email received by the community board.
  * Minimal implementation following TDD GREEN phase.
@@ -15,16 +17,23 @@ public class Email {
     private final String subject;
     private final String body;
     private final Status status;
+    private final Instant receivedAt;
 
-    private Email(String messageId, String from, String subject, String body, Status status) {
+    private Email(String messageId, String from, String subject, String body, Status status, Instant receivedAt) {
         this.messageId = messageId;
         this.from = from;
         this.subject = subject;
         this.body = body;
         this.status = status;
+        this.receivedAt = receivedAt;
     }
 
     public static Email create(String messageId, String from, String subject, String body) {
+        // Use current time as default for backward compatibility
+        return create(messageId, from, subject, body, Instant.now());
+    }
+
+    public static Email create(String messageId, String from, String subject, String body, Instant receivedAt) {
         if (messageId == null) {
             throw new IllegalArgumentException();
         }
@@ -44,7 +53,7 @@ public class Email {
             throw new IllegalArgumentException();
         }
 
-        return new Email(messageId, from, subject, body, Status.UNPROCESSED);
+        return new Email(messageId, from, subject, body, Status.UNPROCESSED, receivedAt);
     }
 
     public String getMessageId() {
@@ -65,5 +74,9 @@ public class Email {
 
     public Status getStatus() {
         return status;
+    }
+
+    public Instant getReceivedAt() {
+        return receivedAt;
     }
 }

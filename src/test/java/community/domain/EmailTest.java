@@ -1,6 +1,7 @@
 package community.domain;
 
 import org.junit.jupiter.api.Test;
+import java.time.Instant;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -92,5 +93,23 @@ public class EmailTest {
         assertNotNull(email);
         assertEquals("", email.getSubject());
         assertEquals("", email.getBody());
+    }
+
+    @Test
+    public void shouldStoreReceivedAtTimestamp() {
+        // RED PHASE: Test for receivedAt timestamp field needed for cursor-based email sync
+        // GIVEN
+        String messageId = "msg-cursor-001";
+        String from = "resident@community.com";
+        String subject = "Test Subject";
+        String body = "Test Body";
+        Instant receivedAt = Instant.parse("2025-10-20T10:15:30Z");
+
+        // WHEN
+        Email email = Email.create(messageId, from, subject, body, receivedAt);
+
+        // THEN
+        assertNotNull(email);
+        assertEquals(receivedAt, email.getReceivedAt());
     }
 }
