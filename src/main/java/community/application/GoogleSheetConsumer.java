@@ -2,46 +2,52 @@ package community.application;
 
 import akka.javasdk.annotations.Component;
 import akka.javasdk.annotations.Consume;
+import akka.javasdk.client.ComponentClient;
 import akka.javasdk.consumer.Consumer;
 import community.domain.Email;
 import community.domain.EmailTags;
 import community.domain.SheetRow;
-import community.domain.SheetSyncService;
 
 /**
- * Consumer that listens to EmailEntity events and syncs data to Google Sheets.
- * Events are the source of truth - the sheet is a materialized view that can be rebuilt.
+ * Consumer that listens to EmailEntity events and writes them to a buffer.
+ * Events are buffered in SheetSyncBufferEntity and flushed periodically by SheetSyncFlushAction.
+ *
+ * This batching approach avoids Google Sheets API rate limiting during event replay.
  */
 @Component(id = "google-sheet-consumer")
 @Consume.FromEventSourcedEntity(EmailEntity.class)
 public class GoogleSheetConsumer extends Consumer {
 
-    private final SheetSyncService sheetService;
+    private static final String BUFFER_ENTITY_ID = "global-buffer";
 
-    public GoogleSheetConsumer(SheetSyncService sheetService) {
-        this.sheetService = sheetService;
+    private final ComponentClient componentClient;
+
+    public GoogleSheetConsumer(ComponentClient componentClient) {
+        this.componentClient = componentClient;
     }
 
     public Effect onEvent(EmailEntity.Event event) {
         // Get the entity ID (which is the messageId)
         String messageId = messageContext().eventSubject().get();
 
-        return switch (event) {
+        // Convert event to SheetRow
+        SheetRow row = switch (event) {
             case EmailEntity.Event.EmailReceived emailReceived -> {
-                // Sync email to sheet (without tags initially)
                 Email email = emailReceived.email();
-                SheetRow row = SheetRow.fromEmail(email);
-                sheetService.upsertRow(messageId, row);
-                yield effects().done();
+                yield SheetRow.fromEmail(email);
             }
-
             case EmailEntity.Event.TagsGenerated tagsGenerated -> {
-                // Update the row with tags (partial update - email fields will be preserved)
                 EmailTags tags = tagsGenerated.tags();
-                SheetRow row = SheetRow.onlyTags(messageId, tags);
-                sheetService.upsertRow(messageId, row);
-                yield effects().done();
+                yield SheetRow.onlyTags(messageId, tags);
             }
         };
+
+        // Add row to buffer (will be flushed periodically by TimedAction)
+        componentClient
+            .forKeyValueEntity(BUFFER_ENTITY_ID)
+            .method(SheetSyncBufferEntity::addRow)
+            .invoke(row);
+
+        return effects().done();
     }
 }
