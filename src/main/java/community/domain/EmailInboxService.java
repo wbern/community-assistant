@@ -1,5 +1,6 @@
 package community.domain;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -14,4 +15,13 @@ public interface EmailInboxService {
      * @return list of unprocessed emails
      */
     List<Email> fetchUnprocessedEmails();
+
+    /**
+     * Fetches emails received after the specified cursor timestamp.
+     * This enables cursor-based synchronization for external email systems.
+     *
+     * @param since cursor timestamp - only emails received after this time are returned
+     * @return list of emails received after the cursor
+     */
+    List<Email> fetchEmailsSince(Instant since);
 }

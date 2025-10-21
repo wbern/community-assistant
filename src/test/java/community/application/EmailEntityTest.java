@@ -28,7 +28,8 @@ public class EmailEntityTest {
             "The elevator is broken"
         );
 
-        EventSourcedResult<String> result = testKit.call(e -> e.receiveEmail(email));
+        EventSourcedResult<String> result = testKit.method(EmailEntity::receiveEmail)
+            .invoke(email);
 
         assertTrue(result.isReply());
         assertEquals("Email received", result.getReply());
@@ -54,7 +55,7 @@ public class EmailEntityTest {
             "The elevator is broken"
         );
 
-        testKit.call(e -> e.receiveEmail(email));
+        testKit.method(EmailEntity::receiveEmail).invoke(email);
 
         // Verify state now contains the email
         EmailEntity.State state = testKit.getState();
@@ -75,7 +76,7 @@ public class EmailEntityTest {
             "Broken elevator",
             "The elevator is broken"
         );
-        testKit.call(e -> e.receiveEmail(email));
+        testKit.method(EmailEntity::receiveEmail).invoke(email);
 
         // Then add tags
         EmailTags tags = EmailTags.create(
@@ -83,7 +84,7 @@ public class EmailEntityTest {
             "Elevator broken in Building A",
             "Building A"
         );
-        EventSourcedResult<String> result = testKit.call(e -> e.addTags(tags));
+        EventSourcedResult<String> result = testKit.method(EmailEntity::addTags).invoke(tags);
 
         // Verify tags event was emitted
         assertTrue(result.isReply());
@@ -110,21 +111,91 @@ public class EmailEntityTest {
             "Broken elevator",
             "The elevator is broken"
         );
-        testKit.call(e -> e.receiveEmail(email));
+        testKit.method(EmailEntity::receiveEmail).invoke(email);
 
         EmailTags tags = EmailTags.create(
             Set.of("urgent", "maintenance"),
             "Urgent maintenance issue",
             null
         );
-        testKit.call(e -> e.addTags(tags));
+        testKit.method(EmailEntity::addTags).invoke(tags);
 
         // Query tags
-        var retrievedTags = testKit.call(e -> e.getTags()).getReply();
+        var retrievedTags = testKit.method(EmailEntity::getTags).invoke().getReply();
 
         assertNotNull(retrievedTags);
         assertEquals(2, retrievedTags.tags().size());
         assertTrue(retrievedTags.tags().contains("urgent"));
         assertTrue(retrievedTags.tags().contains("maintenance"));
+    }
+
+    @Test
+    public void shouldBeIdempotentWhenReceivingSameEmailTwice() {
+        // RED: Test that receiving the same email twice doesn't create duplicate events
+        EventSourcedTestKit<EmailEntity.State, EmailEntity.Event, EmailEntity> testKit =
+            EventSourcedTestKit.of(EmailEntity::new);
+
+        Email email = Email.create(
+            "msg-duplicate-test",
+            "resident@community.com",
+            "Broken elevator",
+            "The elevator is broken"
+        );
+
+        // First receive
+        EventSourcedResult<String> result1 = testKit.method(EmailEntity::receiveEmail)
+            .invoke(email);
+        assertTrue(result1.isReply());
+        assertEquals(1, result1.getAllEvents().size(), "First call should emit 1 event");
+
+        // Second receive (same email) - should be idempotent
+        EventSourcedResult<String> result2 = testKit.method(EmailEntity::receiveEmail)
+            .invoke(email);
+        assertTrue(result2.isReply());
+        assertEquals(0, result2.getAllEvents().size(),
+            "Second call should not emit event (idempotent)");
+
+        // State should still have the email
+        EmailEntity.State state = testKit.getState();
+        assertNotNull(state.email());
+        assertEquals("msg-duplicate-test", state.email().getMessageId());
+    }
+
+    @Test
+    public void shouldBeIdempotentWhenAddingSameTagsTwice() {
+        // RED: Test that adding tags twice doesn't create duplicate TagsGenerated events
+        EventSourcedTestKit<EmailEntity.State, EmailEntity.Event, EmailEntity> testKit =
+            EventSourcedTestKit.of(EmailEntity::new);
+
+        // Receive email first
+        Email email = Email.create(
+            "msg-tags-idempotent",
+            "resident@community.com",
+            "Broken elevator",
+            "The elevator is broken"
+        );
+        testKit.method(EmailEntity::receiveEmail).invoke(email);
+
+        // Add tags first time
+        EmailTags tags = EmailTags.create(
+            Set.of("urgent", "maintenance"),
+            "Urgent issue",
+            "Building A"
+        );
+        EventSourcedResult<String> result1 = testKit.method(EmailEntity::addTags).invoke(tags);
+        assertTrue(result1.isReply());
+        assertEquals(1, result1.getAllEvents().size(), "First addTags should emit 1 event");
+
+        // Add same tags again - should be idempotent
+        EventSourcedResult<String> result2 = testKit.method(EmailEntity::addTags).invoke(tags);
+        assertTrue(result2.isReply());
+        assertEquals(0, result2.getAllEvents().size(),
+            "Second addTags should not emit event (idempotent)");
+
+        // State should still have the tags
+        EmailEntity.State state = testKit.getState();
+        assertNotNull(state.tags());
+        assertEquals(2, state.tags().tags().size());
+        assertTrue(state.tags().tags().contains("urgent"));
     }
 }
