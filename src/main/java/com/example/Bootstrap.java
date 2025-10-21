@@ -9,16 +9,21 @@ import akka.javasdk.timer.TimerScheduler;
 import com.typesafe.config.Config;
 import community.application.SheetSyncFlushAction;
 import community.domain.EmailInboxService;
+import community.domain.GmailInboxService;
 import community.domain.MockEmailInboxService;
 import community.domain.MockSheetSyncService;
 import community.domain.SheetSyncService;
 import realestate.application.EmailClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import io.github.cdimascio.dotenv.Dotenv;
 
 import java.time.Duration;
 
 @Setup
 public class Bootstrap implements ServiceSetup {
 
+  private static final Logger log = LoggerFactory.getLogger(Bootstrap.class);
   private static final String BOOTSTRAP_TIMER_NAME = "bootstrap-sheet-sync-timer";
 
   // Singleton mock for testing - will be replaced with real service later
@@ -28,6 +33,22 @@ public class Bootstrap implements ServiceSetup {
   private final TimerScheduler timerScheduler;
 
   public Bootstrap(Config config, ComponentClient componentClient, TimerScheduler timerScheduler) {
+    // Load .env file if it exists (for local development)
+    try {
+      Dotenv dotenv = Dotenv.configure()
+          .ignoreIfMissing()
+          .load();
+      dotenv.entries().forEach(entry -> {
+        if (System.getenv(entry.getKey()) == null) {
+          // Only set if not already set by environment
+          System.setProperty(entry.getKey(), entry.getValue());
+        }
+      });
+      log.info("Loaded .env file");
+    } catch (Exception e) {
+      log.debug("No .env file found or error loading it (this is fine): {}", e.getMessage());
+    }
+
     this.componentClient = componentClient;
     this.timerScheduler = timerScheduler;
     if (config.getString("akka.javasdk.agent.model-provider").equals("openai")
@@ -73,8 +94,31 @@ public class Bootstrap implements ServiceSetup {
           return (T) MOCK_SHEET_SERVICE;
         }
         if (aClass.equals(EmailInboxService.class)) {
-          // TODO: Replace with real GmailInboxService when Gmail integration is ready
-          return (T) new MockEmailInboxService();
+          // Use real Gmail if credentials are available, otherwise mock
+          // Check both environment and system properties (for .env support)
+          String credentialsPath = System.getenv("GOOGLE_APPLICATION_CREDENTIALS");
+          if (credentialsPath == null) {
+            credentialsPath = System.getProperty("GOOGLE_APPLICATION_CREDENTIALS");
+          }
+
+          String gmailUserEmail = System.getenv("GMAIL_USER_EMAIL");
+          if (gmailUserEmail == null) {
+            gmailUserEmail = System.getProperty("GMAIL_USER_EMAIL");
+          }
+
+          if (credentialsPath != null && !credentialsPath.isEmpty() &&
+              gmailUserEmail != null && !gmailUserEmail.isEmpty()) {
+            try {
+              log.info("Initializing GmailInboxService for {}", gmailUserEmail);
+              return (T) new GmailInboxService(gmailUserEmail);
+            } catch (Exception e) {
+              log.warn("Failed to initialize GmailInboxService, falling back to MockEmailInboxService", e);
+              return (T) new MockEmailInboxService();
+            }
+          } else {
+            log.info("Using MockEmailInboxService (GOOGLE_APPLICATION_CREDENTIALS or GMAIL_USER_EMAIL not set)");
+            return (T) new MockEmailInboxService();
+          }
         }
         return null;
       }

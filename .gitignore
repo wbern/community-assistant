@@ -31,3 +31,6 @@ akka-context/
 
 .claude/settings.local.json
 *.gitignore.json
+
+# Environment variables (local only)
+.env
