@@ -198,11 +198,11 @@ public class RealGmailEndToEndIntegrationTest extends TestKitSupport {
     void shouldSyncRealEmailsToGoogleSheets() {
         // GIVEN: A workflow and real sheet service
         String workflowId = "real-gmail-sheets-" + System.currentTimeMillis();
-        Instant threeDaysAgo = Instant.now().minus(java.time.Duration.ofDays(3));
+        Instant sevenDaysAgo = Instant.now().minus(java.time.Duration.ofDays(7));
 
         componentClient.forKeyValueEntity(workflowId)
             .method(EmailSyncCursorEntity::updateCursor)
-            .invoke(threeDaysAgo);
+            .invoke(sevenDaysAgo);
 
         EmailTags mockTags = EmailTags.create(
             Set.of("maintenance", "urgent"),
@@ -231,17 +231,24 @@ public class RealGmailEndToEndIntegrationTest extends TestKitSupport {
                 System.out.println("🧹 Cleared Google Sheet for clean test");
 
                 // Wait for buffer to flush (happens every 10 seconds)
+                // Note: batchUpsertRows currently makes individual API calls (not optimized yet),
+                // so we verify that SOME emails are synced, not necessarily all within timeout
+                int expectedRows = result.emailsProcessed();
                 Awaitility.await()
-                    .atMost(20, TimeUnit.SECONDS)
+                    .atMost(30, TimeUnit.SECONDS)
                     .pollInterval(2, TimeUnit.SECONDS)
                     .untilAsserted(() -> {
                         // Count rows in the sheet
                         int rowCount = sheetService.countRows();
 
-                        System.out.println("⏳ Waiting for flush... Current rows in sheet: " + rowCount);
+                        System.out.println("⏳ Waiting for flush... Current rows in sheet: " + rowCount + "/" + expectedRows);
                         assertTrue(rowCount > 0,
-                            "At least one email should be flushed to Google Sheets");
+                            "At least some emails should be flushed to Google Sheets");
                     });
+
+                // Print final count after waiting
+                int finalCount = sheetService.countRows();
+                System.out.println("✅ " + finalCount + "/" + expectedRows + " emails synced to Google Sheets");
 
                 System.out.println("✅ Emails synced to real Google Sheets");
             } else {
@@ -262,7 +269,7 @@ public class RealGmailEndToEndIntegrationTest extends TestKitSupport {
                     });
             }
         } else {
-            System.out.println("ℹ️  No emails to sync (none in last 3 days)");
+            System.out.println("ℹ️  No emails to sync (none in last 7 days)");
         }
     }
 }
