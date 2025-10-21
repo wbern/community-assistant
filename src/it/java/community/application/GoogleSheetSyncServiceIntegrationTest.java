@@ -7,6 +7,7 @@ import community.domain.SheetRow;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -264,5 +265,46 @@ public class GoogleSheetSyncServiceIntegrationTest {
         SheetRow afterReplay3 = syncService.getRow(msgId3);
         assertEquals(reconstructed3.from(), afterReplay3.from());
         assertNull(afterReplay3.tags());
+    }
+
+    @Test
+    public void shouldBatchUpsertRowsEfficiently() throws Exception {
+        // RED PHASE: This test will fail because current implementation
+        // makes N individual API calls instead of 1 batch call
+
+        // GIVEN: 10 email rows to batch upsert
+        List<SheetRow> rows = new java.util.ArrayList<>();
+        for (int i = 1; i <= 10; i++) {
+            String msgId = "batch-test-" + String.format("%03d", i);
+            Email email = Email.create(
+                msgId,
+                "batch" + i + "@test.com",
+                "Batch Test Subject " + i,
+                "Batch test body " + i
+            );
+            rows.add(SheetRow.fromEmail(email));
+        }
+
+        // WHEN: Batch upserting all rows
+        long startTime = System.currentTimeMillis();
+        syncService.batchUpsertRows(rows);
+        long batchDuration = System.currentTimeMillis() - startTime;
+
+        System.out.println("⏱️  Batch upsert (10 rows): " + batchDuration + "ms");
+
+        // THEN: Verify all rows were written
+        for (int i = 1; i <= 10; i++) {
+            String msgId = "batch-test-" + String.format("%03d", i);
+            SheetRow retrieved = syncService.getRow(msgId);
+            assertNotNull(retrieved, "Row " + msgId + " should exist");
+            assertEquals("batch" + i + "@test.com", retrieved.from());
+        }
+
+        // PERFORMANCE CHECK: Batch should be significantly faster than individual calls
+        // Current implementation makes N individual calls, so this will FAIL
+        // After optimization, batch should complete in < 2 seconds for 10 rows
+        assertTrue(batchDuration < 2000,
+            "Batch upsert should complete in < 2s (was " + batchDuration + "ms). " +
+            "This proves we're using true batch API, not individual calls.");
     }
 }

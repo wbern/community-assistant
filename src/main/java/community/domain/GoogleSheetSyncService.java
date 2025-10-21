@@ -342,10 +342,128 @@ public class GoogleSheetSyncService implements SheetSyncService {
 
     @Override
     public void batchUpsertRows(List<SheetRow> rowList) {
-        // Minimal GREEN implementation: process each row using existing upsertRow
-        // This avoids rate limiting by reducing external calls from N to 1 batch
-        for (SheetRow row : rowList) {
-            upsertRow(row.messageId(), row);
+        if (rowList.isEmpty()) {
+            return;
+        }
+
+        try {
+            // OPTIMIZATION: Read all message IDs ONCE (not once per row)
+            String range = SHEET_NAME + "!A:A";
+            ValueRange response = sheetsService.spreadsheets().values()
+                .get(spreadsheetId, range)
+                .execute();
+
+            // Build map of messageId -> row number
+            java.util.Map<String, Integer> messageIdToRowIndex = new java.util.HashMap<>();
+            List<List<Object>> values = response.getValues();
+            if (values != null) {
+                for (int i = 1; i < values.size(); i++) { // Skip header row (index 0)
+                    List<Object> row = values.get(i);
+                    if (!row.isEmpty()) {
+                        String messageId = row.get(0).toString();
+                        messageIdToRowIndex.put(messageId, i + 1); // 1-based row number
+                    }
+                }
+            }
+
+            // Separate new rows from existing rows
+            List<SheetRow> newRows = new ArrayList<>();
+            java.util.Map<Integer, SheetRow> existingRowsMap = new java.util.HashMap<>();
+
+            for (SheetRow row : rowList) {
+                Integer rowIndex = messageIdToRowIndex.get(row.messageId());
+                if (rowIndex != null) {
+                    existingRowsMap.put(rowIndex, row);
+                } else {
+                    newRows.add(row);
+                }
+            }
+
+            // Batch append new rows (single API call)
+            if (!newRows.isEmpty()) {
+                List<List<Object>> newRowsData = new ArrayList<>();
+                for (SheetRow row : newRows) {
+                    newRowsData.add(Arrays.asList(
+                        row.messageId(),
+                        row.from() != null ? row.from() : "",
+                        row.subject() != null ? row.subject() : "",
+                        row.body() != null ? row.body() : "",
+                        row.tags() != null ? row.tags() : "",
+                        row.summary() != null ? row.summary() : "",
+                        row.location() != null ? row.location() : ""
+                    ));
+                }
+
+                ValueRange appendRange = new ValueRange().setValues(newRowsData);
+                sheetsService.spreadsheets().values()
+                    .append(spreadsheetId, SHEET_NAME + "!A:G", appendRange)
+                    .setValueInputOption("RAW")
+                    .setInsertDataOption("INSERT_ROWS")
+                    .execute();
+            }
+
+            // Batch update existing rows: Read all existing rows at once, then update
+            if (!existingRowsMap.isEmpty()) {
+                // Build ranges for batchGet
+                List<String> ranges = new ArrayList<>();
+                for (Integer rowIndex : existingRowsMap.keySet()) {
+                    ranges.add(SHEET_NAME + "!A" + rowIndex + ":G" + rowIndex);
+                }
+
+                // Read all existing rows in ONE API call
+                BatchGetValuesResponse batchGetResponse = sheetsService.spreadsheets().values()
+                    .batchGet(spreadsheetId)
+                    .setRanges(ranges)
+                    .execute();
+
+                // Build update list
+                List<ValueRange> updates = new ArrayList<>();
+                int rangeIndex = 0;
+                for (Integer rowIndex : existingRowsMap.keySet()) {
+                    SheetRow newRow = existingRowsMap.get(rowIndex);
+                    String range2 = SHEET_NAME + "!A" + rowIndex + ":G" + rowIndex;
+
+                    // Get existing values from batchGet response
+                    List<Object> existingValues = new ArrayList<>(Arrays.asList("", "", "", "", "", "", ""));
+                    if (rangeIndex < batchGetResponse.getValueRanges().size()) {
+                        ValueRange vr = batchGetResponse.getValueRanges().get(rangeIndex);
+                        if (vr.getValues() != null && !vr.getValues().isEmpty()) {
+                            List<Object> existing = vr.getValues().get(0);
+                            for (int i = 0; i < Math.min(existing.size(), existingValues.size()); i++) {
+                                existingValues.set(i, existing.get(i));
+                            }
+                        }
+                    }
+                    rangeIndex++;
+
+                    // Merge values
+                    List<Object> mergedValues = Arrays.asList(
+                        newRow.messageId(),
+                        mergeValue(newRow.from(), existingValues.get(1)),
+                        mergeValue(newRow.subject(), existingValues.get(2)),
+                        mergeValue(newRow.body(), existingValues.get(3)),
+                        mergeValue(newRow.tags(), existingValues.get(4)),
+                        mergeValue(newRow.summary(), existingValues.get(5)),
+                        mergeValue(newRow.location(), existingValues.get(6))
+                    );
+
+                    ValueRange valueRange = new ValueRange()
+                        .setRange(range2)
+                        .setValues(Collections.singletonList(mergedValues));
+                    updates.add(valueRange);
+                }
+
+                // Execute batch update in ONE API call
+                BatchUpdateValuesRequest batchRequest = new BatchUpdateValuesRequest()
+                    .setValueInputOption("RAW")
+                    .setData(updates);
+
+                sheetsService.spreadsheets().values()
+                    .batchUpdate(spreadsheetId, batchRequest)
+                    .execute();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to batch upsert rows", e);
         }
     }
 
