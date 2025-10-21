@@ -1,0 +1,3 @@
+credentials.gitignore.json
+.env
+.env.*
