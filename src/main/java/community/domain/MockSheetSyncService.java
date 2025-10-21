@@ -11,6 +11,10 @@ public class MockSheetSyncService implements SheetSyncService {
 
     private final Map<String, SheetRow> rows = new HashMap<>();
 
+    // Batch call tracking for testing batching behavior
+    private int batchCallCount = 0;
+    private int lastBatchSize = 0;
+
     @Override
     public void upsertRow(String messageId, SheetRow row) {
         // Smart merge: if row already exists, merge fields
@@ -43,6 +47,7 @@ public class MockSheetSyncService implements SheetSyncService {
     /**
      * Get a row by messageId (for test verification).
      */
+    @Override
     public SheetRow getRow(String messageId) {
         return rows.get(messageId);
     }
@@ -55,9 +60,47 @@ public class MockSheetSyncService implements SheetSyncService {
     }
 
     /**
+     * Get the number of batch calls made (for testing batching behavior).
+     */
+    public int getBatchCallCount() {
+        return batchCallCount;
+    }
+
+    /**
+     * Get the size of the last batch processed (for testing batching behavior).
+     */
+    public int getLastBatchSize() {
+        return lastBatchSize;
+    }
+
+    /**
      * Clear all rows (for test cleanup).
      */
     public void clear() {
         rows.clear();
+        batchCallCount = 0;
+        lastBatchSize = 0;
+    }
+
+    @Override
+    public void deleteRow(String messageId) {
+        rows.remove(messageId);
+    }
+
+    @Override
+    public void clearAllRows() {
+        clear();
+    }
+
+    @Override
+    public void batchUpsertRows(java.util.List<SheetRow> rowList) {
+        // Track batch call
+        batchCallCount++;
+        lastBatchSize = rowList.size();
+
+        // Process each row in the batch using existing upsertRow logic
+        for (SheetRow row : rowList) {
+            upsertRow(row.messageId(), row);
+        }
     }
 }

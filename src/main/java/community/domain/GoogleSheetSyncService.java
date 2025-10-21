@@ -37,6 +37,7 @@ public class GoogleSheetSyncService implements SheetSyncService {
 
     private final Sheets sheetsService;
     private final String spreadsheetId;
+    private final Integer sheetId; // Cached sheet ID for batch operations
 
     /**
      * Initialize Google Sheets service with default credentials from environment.
@@ -46,10 +47,25 @@ public class GoogleSheetSyncService implements SheetSyncService {
         this.spreadsheetId = spreadsheetId;
         try {
             this.sheetsService = createSheetsService();
+            this.sheetId = lookupSheetId(); // Cache sheet ID once
             initializeSheetIfNeeded();
         } catch (GeneralSecurityException | IOException e) {
             throw new RuntimeException("Failed to initialize Google Sheets service", e);
         }
+    }
+
+    /**
+     * Look up and cache the sheet ID.
+     * Sheet ID is immutable and needed for batchUpdate operations.
+     */
+    private Integer lookupSheetId() throws IOException {
+        Spreadsheet spreadsheet = sheetsService.spreadsheets().get(spreadsheetId).execute();
+        for (Sheet sheet : spreadsheet.getSheets()) {
+            if (SHEET_NAME.equals(sheet.getProperties().getTitle())) {
+                return sheet.getProperties().getSheetId();
+            }
+        }
+        throw new IllegalStateException("Sheet not found: " + SHEET_NAME);
     }
 
     /**
@@ -214,5 +230,122 @@ public class GoogleSheetSyncService implements SheetSyncService {
             .setValueInputOption("RAW")
             .setInsertDataOption("INSERT_ROWS")
             .execute();
+    }
+
+    @Override
+    public SheetRow getRow(String messageId) {
+        try {
+            // Find the row by messageId
+            Integer rowIndex = findRowByMessageId(messageId);
+            if (rowIndex == null) {
+                return null; // Row not found
+            }
+
+            // Read the row from Google Sheets
+            String range = SHEET_NAME + "!A" + rowIndex + ":G" + rowIndex;
+            ValueRange response = sheetsService.spreadsheets().values()
+                .get(spreadsheetId, range)
+                .execute();
+
+            if (response.getValues() == null || response.getValues().isEmpty()) {
+                return null;
+            }
+
+            List<Object> row = response.getValues().get(0);
+
+            // Convert row data to SheetRow (handle missing columns gracefully)
+            String messageIdValue = row.size() > 0 ? String.valueOf(row.get(0)) : "";
+            String from = row.size() > 1 ? String.valueOf(row.get(1)) : null;
+            String subject = row.size() > 2 ? String.valueOf(row.get(2)) : null;
+            String body = row.size() > 3 ? String.valueOf(row.get(3)) : null;
+            String tags = row.size() > 4 ? String.valueOf(row.get(4)) : null;
+            String summary = row.size() > 5 ? String.valueOf(row.get(5)) : null;
+            String location = row.size() > 6 ? String.valueOf(row.get(6)) : null;
+
+            // Convert empty strings to null for consistency
+            return new SheetRow(
+                messageIdValue,
+                from != null && !from.isEmpty() ? from : null,
+                subject != null && !subject.isEmpty() ? subject : null,
+                body != null && !body.isEmpty() ? body : null,
+                tags != null && !tags.isEmpty() ? tags : null,
+                summary != null && !summary.isEmpty() ? summary : null,
+                location != null && !location.isEmpty() ? location : null
+            );
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to get row for messageId: " + messageId, e);
+        }
+    }
+
+    @Override
+    public void deleteRow(String messageId) {
+        try {
+            // Find the row by messageId
+            Integer rowIndex = findRowByMessageId(messageId);
+            if (rowIndex == null) {
+                return; // Row not found, nothing to delete
+            }
+
+            // Delete the row using batchUpdate (sheetId is cached)
+            DeleteDimensionRequest deleteRequest = new DeleteDimensionRequest()
+                .setRange(new DimensionRange()
+                    .setSheetId(sheetId)
+                    .setDimension("ROWS")
+                    .setStartIndex(rowIndex - 1) // 0-based for API
+                    .setEndIndex(rowIndex));      // Exclusive end
+
+            BatchUpdateSpreadsheetRequest batchRequest = new BatchUpdateSpreadsheetRequest()
+                .setRequests(Collections.singletonList(
+                    new Request().setDeleteDimension(deleteRequest)
+                ));
+
+            sheetsService.spreadsheets().batchUpdate(spreadsheetId, batchRequest).execute();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to delete row for messageId: " + messageId, e);
+        }
+    }
+
+    @Override
+    public void clearAllRows() {
+        try {
+            // Get all data to see how many rows exist
+            String range = SHEET_NAME + "!A:A";
+            ValueRange response = sheetsService.spreadsheets().values()
+                .get(spreadsheetId, range)
+                .execute();
+
+            List<List<Object>> values = response.getValues();
+            if (values == null || values.size() <= 1) {
+                return; // Only header or empty, nothing to clear
+            }
+
+            // Delete all rows from row 2 onwards (index 1 in 0-based)
+            // Uses cached sheetId to avoid extra API call
+            int numRows = values.size();
+            DeleteDimensionRequest deleteRequest = new DeleteDimensionRequest()
+                .setRange(new DimensionRange()
+                    .setSheetId(sheetId)
+                    .setDimension("ROWS")
+                    .setStartIndex(1)           // Start after header (0-based)
+                    .setEndIndex(numRows));     // Exclusive end
+
+            BatchUpdateSpreadsheetRequest batchRequest = new BatchUpdateSpreadsheetRequest()
+                .setRequests(Collections.singletonList(
+                    new Request().setDeleteDimension(deleteRequest)
+                ));
+
+            sheetsService.spreadsheets().batchUpdate(spreadsheetId, batchRequest).execute();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to clear all rows", e);
+        }
+    }
+
+    @Override
+    public void batchUpsertRows(List<SheetRow> rowList) {
+        // Minimal GREEN implementation: process each row using existing upsertRow
+        // This avoids rate limiting by reducing external calls from N to 1 batch
+        for (SheetRow row : rowList) {
+            upsertRow(row.messageId(), row);
+        }
     }
 }
