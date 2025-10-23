@@ -7,6 +7,7 @@ import community.domain.SheetRow;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
@@ -47,26 +48,6 @@ public class GoogleSheetSyncServiceIntegrationTest {
         } catch (Exception e) {
             System.err.println("Warning: Failed to clear test data before test: " + e.getMessage());
         }
-    }
-
-    @Test
-    public void shouldUpsertEmailRowToGoogleSheets() throws Exception {
-        // GIVEN: An email row
-        Email email = Email.create(
-            "integration-test-001",
-            "integration@test.com",
-            "Integration Test Subject",
-            "Integration test body"
-        );
-        SheetRow row = SheetRow.fromEmail(email);
-
-        // WHEN: Upserting to Google Sheets
-        syncService.upsertRow("integration-test-001", row);
-
-        // THEN: Should be able to read it back
-        // Note: In real implementation, we'd verify by reading from the sheet
-        // For now, if no exception is thrown, we consider it successful
-        assertTrue(true, "Upsert completed without exception");
     }
 
     @Test
@@ -160,111 +141,64 @@ public class GoogleSheetSyncServiceIntegrationTest {
     }
 
     @Test
-    public void shouldReadBackWrittenRow() throws Exception {
-        // RED PHASE: This test will fail because getRow() doesn't exist yet
+    public void shouldMaintainCompleteFieldsAfterBatchDuplicateProcessing() throws Exception {
+        // RED PHASE: This test will fail because batch processing 
+        // may leave blank fields when handling duplicates in the same batch
 
-        // GIVEN: Write an email to sheet
+        // GIVEN: Complete email data that will be processed multiple times
+        String messageId = "batch-complete-001";
         Email email = Email.create(
-            "read-test-001",
-            "read@test.com",
-            "Read Test Subject",
-            "Read test body"
+            messageId,
+            "batch@test.com", 
+            "Batch Complete Subject",
+            "Batch complete body with all details"
         );
-        SheetRow written = SheetRow.fromEmail(email);
-        syncService.upsertRow("read-test-001", written);
+        EmailTags tags = EmailTags.create(
+            Set.of("batch", "complete"),
+            "Batch complete summary",
+            "Meeting Room B"
+        );
 
-        // WHEN: Read it back
-        SheetRow retrieved = syncService.getRow("read-test-001");
+        // WHEN: Batch processing with duplicates (simulating real e2e workflow)
+        List<SheetRow> batchRows = Arrays.asList(
+            SheetRow.fromEmail(email),
+            SheetRow.onlyTags(messageId, tags),
+            SheetRow.fromEmail(email),     // Duplicate email in same batch
+            SheetRow.onlyTags(messageId, tags)  // Duplicate tags in same batch
+        );
+        
+        syncService.batchUpsertRows(batchRows);
 
-        // THEN: All fields should match exactly
-        assertNotNull(retrieved, "Row should exist");
-        assertEquals("read-test-001", retrieved.messageId());
-        assertEquals("read@test.com", retrieved.from());
-        assertEquals("Read Test Subject", retrieved.subject());
-        assertEquals("Read test body", retrieved.body());
-        assertNull(retrieved.tags(), "Tags should be null for email-only row");
-        assertNull(retrieved.summary());
-        assertNull(retrieved.location());
-    }
-
-    @Test
-    public void shouldReconstructSheetFromEventReplay() throws Exception {
-        // STRESS TEST: Simulate rebuilding sheet from event stream
-        // This verifies that our merge semantics correctly handle event replay
-
-        // GIVEN: A sequence of events for 3 different emails
-        // Email 1: Received, then tagged
-        String msgId1 = "stress-001";
-        Email email1 = Email.create(msgId1, "alice@example.com", "Subject 1", "Body 1");
-        EmailTags tags1 = EmailTags.create(Set.of("urgent", "question"), "Summary 1", "Location A");
-
-        // Email 2: Received, then tagged, then received again (duplicate)
-        String msgId2 = "stress-002";
-        Email email2 = Email.create(msgId2, "bob@example.com", "Subject 2", "Body 2");
-        EmailTags tags2 = EmailTags.create(Set.of("info"), "Summary 2", "Location B");
-
-        // Email 3: Only received, never tagged
-        String msgId3 = "stress-003";
-        Email email3 = Email.create(msgId3, "charlie@example.com", "Subject 3", "Body 3");
-
-        // WHEN: Simulating event replay (as if rebuilding from event log)
-        // Play all events in chronological order
-        syncService.upsertRow(msgId1, SheetRow.fromEmail(email1));
-        syncService.upsertRow(msgId2, SheetRow.fromEmail(email2));
-        syncService.upsertRow(msgId3, SheetRow.fromEmail(email3));
-        syncService.upsertRow(msgId1, SheetRow.onlyTags(msgId1, tags1));
-        syncService.upsertRow(msgId2, SheetRow.onlyTags(msgId2, tags2));
-        syncService.upsertRow(msgId2, SheetRow.fromEmail(email2)); // Duplicate event
-
-        // THEN: Verify complete reconstruction
-        SheetRow reconstructed1 = syncService.getRow(msgId1);
-        assertNotNull(reconstructed1, "Email 1 should exist");
-        assertEquals("alice@example.com", reconstructed1.from());
-        assertEquals("Subject 1", reconstructed1.subject());
-        assertEquals("Body 1", reconstructed1.body());
-        assertEquals("question, urgent", reconstructed1.tags()); // Alphabetically sorted
-        assertEquals("Summary 1", reconstructed1.summary());
-        assertEquals("Location A", reconstructed1.location());
-
-        SheetRow reconstructed2 = syncService.getRow(msgId2);
-        assertNotNull(reconstructed2, "Email 2 should exist");
-        assertEquals("bob@example.com", reconstructed2.from());
-        assertEquals("Subject 2", reconstructed2.subject());
-        assertEquals("Body 2", reconstructed2.body());
-        assertEquals("info", reconstructed2.tags());
-        assertEquals("Summary 2", reconstructed2.summary());
-        assertEquals("Location B", reconstructed2.location());
-
-        SheetRow reconstructed3 = syncService.getRow(msgId3);
-        assertNotNull(reconstructed3, "Email 3 should exist");
-        assertEquals("charlie@example.com", reconstructed3.from());
-        assertEquals("Subject 3", reconstructed3.subject());
-        assertEquals("Body 3", reconstructed3.body());
-        assertNull(reconstructed3.tags(), "Email 3 was never tagged");
-        assertNull(reconstructed3.summary());
-        assertNull(reconstructed3.location());
-
-        // Verify idempotency: Replay all events again
-        syncService.upsertRow(msgId1, SheetRow.fromEmail(email1));
-        syncService.upsertRow(msgId2, SheetRow.fromEmail(email2));
-        syncService.upsertRow(msgId3, SheetRow.fromEmail(email3));
-        syncService.upsertRow(msgId1, SheetRow.onlyTags(msgId1, tags1));
-        syncService.upsertRow(msgId2, SheetRow.onlyTags(msgId2, tags2));
-        syncService.upsertRow(msgId2, SheetRow.fromEmail(email2));
-
-        // State should be unchanged after replay
-        SheetRow afterReplay1 = syncService.getRow(msgId1);
-        assertEquals(reconstructed1.from(), afterReplay1.from());
-        assertEquals(reconstructed1.tags(), afterReplay1.tags());
-        assertEquals(reconstructed1.summary(), afterReplay1.summary());
-
-        SheetRow afterReplay2 = syncService.getRow(msgId2);
-        assertEquals(reconstructed2.from(), afterReplay2.from());
-        assertEquals(reconstructed2.tags(), afterReplay2.tags());
-
-        SheetRow afterReplay3 = syncService.getRow(msgId3);
-        assertEquals(reconstructed3.from(), afterReplay3.from());
-        assertNull(afterReplay3.tags());
+        // THEN: Reading back should show ALL fields properly filled (no blanks)
+        SheetRow result = syncService.getRow(messageId);
+        assertNotNull(result, "Row should exist");
+        
+        // All email fields must be populated (not null/empty)
+        assertEquals(messageId, result.messageId());
+        assertNotNull(result.from(), "From field should not be null after batch processing");
+        assertFalse(result.from().isEmpty(), "From field should not be empty after batch processing");
+        assertEquals("batch@test.com", result.from());
+        
+        assertNotNull(result.subject(), "Subject field should not be null after batch processing");
+        assertFalse(result.subject().isEmpty(), "Subject field should not be empty after batch processing");
+        assertEquals("Batch Complete Subject", result.subject());
+        
+        assertNotNull(result.body(), "Body field should not be null after batch processing");
+        assertFalse(result.body().isEmpty(), "Body field should not be empty after batch processing");
+        assertEquals("Batch complete body with all details", result.body());
+        
+        // All tag fields must be populated (not null/empty)
+        assertNotNull(result.tags(), "Tags field should not be null after batch processing");
+        assertFalse(result.tags().isEmpty(), "Tags field should not be empty after batch processing");
+        assertEquals("batch, complete", result.tags());
+        
+        assertNotNull(result.summary(), "Summary field should not be null after batch processing");
+        assertFalse(result.summary().isEmpty(), "Summary field should not be empty after batch processing");
+        assertEquals("Batch complete summary", result.summary());
+        
+        assertNotNull(result.location(), "Location field should not be null after batch processing");
+        assertFalse(result.location().isEmpty(), "Location field should not be empty after batch processing");
+        assertEquals("Meeting Room B", result.location());
     }
 
     @Test

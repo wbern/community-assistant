@@ -20,6 +20,18 @@ A community assistant that can receive incoming emails, intelligently reply, del
 - ✅ **Event buffering** (SheetSyncBufferEntity + SheetSyncFlushAction) - batches API calls
 - ✅ **Rate limiting protection** - flushes every 10 seconds to avoid quota issues
 - ✅ **Idempotency** - defense-in-depth (entity + workflow levels)
+- ✅ **Batch duplicate handling** - merges duplicates within same batch (TDD fix)
+
+#### Google Sheets Future Improvements
+- [ ] **Retry logic with backoff timer** - Add exponential backoff for API rate limit handling
+  - **Architecture**: Enhance existing `SheetSyncFlushAction` (TimedAction) - keep domain service unchanged
+  - **Approach**: Use TimedAction's built-in exponential backoff (3s → 30s max) + maxRetries
+  - **Pattern**: Graceful error handling in TimedAction.execute() - return `effects().done()` on errors
+  - **No restructuring needed**: Current Domain Service + TimedAction pattern IS the Akka way
+  - Handle 429 Too Many Requests errors gracefully in TimedAction layer
+  - Add configurable max retry attempts via TimedAction.maxRetries
+  - Log retry attempts for monitoring
+  - Preserve domain separation: GoogleSheetSyncService stays pure business logic
 
 ### Infrastructure
 - ✅ **Domain-driven design** - clean separation (domain/, application/, api/)
@@ -31,7 +43,45 @@ A community assistant that can receive incoming emails, intelligently reply, del
 
 ## Missing Features (What's Next 📋)
 
-### 1. Email Sending & Replies ❌
+### 1. Chat Interface Integration ❌
+
+**Current Gap**: No two-way communication interface for board members to interact with the system.
+
+**What's Needed**: Topic-centric chat interface that enables natural board member communication about community issues.
+
+**Architecture**: See [CHAT_INTERFACE_ARCHITECTURE.md](./CHAT_INTERFACE_ARCHITECTURE.md) for complete architectural analysis.
+
+**Key Components**:
+- [ ] `TopicEntity` (EventSourcedEntity) - Long-lived community issue tracking
+- [ ] `ConversationEntity` (EventSourcedEntity) - Per-inquiry context management  
+- [ ] `TopicClassifierAgent` - AI classification of emails/mentions into topics
+- [ ] `TopicLookupAgent` - Semantic search for "@assistant about that elevator thing"
+- [ ] `InquiryWorkflow` - Multi-step conversation orchestration
+- [ ] `TopicContextView` - Optimized queries for fast topic retrieval
+- [ ] Platform adapters (Discord, Slack, HTTP endpoints)
+
+**Integration Points**:
+- Extends existing `EmailProcessingWorkflow` with topic classification
+- Enhances `GoogleSheetConsumer` with topic context columns
+- Reuses `EmailTaggingAgent` for topic classification input
+- Links `EmailEntity` events to `TopicEntity` creation/updates
+
+**TDD Implementation Phases**:
+1. TopicEntity foundation with event sourcing
+2. Topic classification from emails using AI
+3. @mention resolution and topic lookup
+4. Complete inquiry workflow with context gathering
+5. Platform integration (starting with HTTP/webhooks)
+
+**Benefits**:
+- Board members can @mention topics naturally: "@assistant status on Building A maintenance?"
+- Complete audit trail of community issue discussions
+- Leverages existing email processing infrastructure
+- Platform-agnostic design (Discord, Slack, web interface)
+
+---
+
+### 2. Email Sending & Replies ❌
 
 **Current Gap**: We can receive and classify emails but cannot send responses.
 

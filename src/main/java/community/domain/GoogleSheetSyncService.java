@@ -209,6 +209,21 @@ public class GoogleSheetSyncService implements SheetSyncService {
     }
 
     /**
+     * Merge two SheetRows: null/empty fields from new row preserve existing values.
+     */
+    private SheetRow mergeRows(SheetRow existing, SheetRow newRow) {
+        return new SheetRow(
+            newRow.messageId(), // messageId always from new row
+            newRow.from() != null && !newRow.from().isEmpty() ? newRow.from() : existing.from(),
+            newRow.subject() != null && !newRow.subject().isEmpty() ? newRow.subject() : existing.subject(),
+            newRow.body() != null && !newRow.body().isEmpty() ? newRow.body() : existing.body(),
+            newRow.tags() != null && !newRow.tags().isEmpty() ? newRow.tags() : existing.tags(),
+            newRow.summary() != null && !newRow.summary().isEmpty() ? newRow.summary() : existing.summary(),
+            newRow.location() != null && !newRow.location().isEmpty() ? newRow.location() : existing.location()
+        );
+    }
+
+    /**
      * Append new row to the end of the sheet.
      */
     private void appendNewRow(SheetRow row) throws IOException {
@@ -366,18 +381,27 @@ public class GoogleSheetSyncService implements SheetSyncService {
                 }
             }
 
-            // Separate new rows from existing rows
+            // Separate new rows from existing rows, merging duplicates in the batch
             List<SheetRow> newRows = new ArrayList<>();
             java.util.Map<Integer, SheetRow> existingRowsMap = new java.util.HashMap<>();
+            java.util.Map<String, SheetRow> newRowsMap = new java.util.HashMap<>();
 
             for (SheetRow row : rowList) {
                 Integer rowIndex = messageIdToRowIndex.get(row.messageId());
                 if (rowIndex != null) {
-                    existingRowsMap.put(rowIndex, row);
+                    // Merge with existing row updates in same batch
+                    SheetRow existing = existingRowsMap.get(rowIndex);
+                    existingRowsMap.put(rowIndex, existing != null ? mergeRows(existing, row) : row);
                 } else {
-                    newRows.add(row);
+                    // Merge with new row duplicates in same batch
+                    SheetRow existing = newRowsMap.get(row.messageId());
+                    SheetRow merged = existing != null ? mergeRows(existing, row) : row;
+                    newRowsMap.put(row.messageId(), merged);
                 }
             }
+
+            // Convert merged new rows to list
+            newRows.addAll(newRowsMap.values());
 
             // Batch append new rows (single API call)
             if (!newRows.isEmpty()) {
