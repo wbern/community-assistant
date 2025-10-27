@@ -2,9 +2,9 @@ package community.api;
 
 import akka.javasdk.testkit.TestKit;
 import akka.javasdk.testkit.TestKitSupport;
-import community.application.EmailEntity;
-import community.domain.Email;
-import community.domain.EmailTags;
+import community.application.entity.EmailEntity;
+import community.domain.model.Email;
+import community.domain.model.EmailTags;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 

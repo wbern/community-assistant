@@ -2,10 +2,11 @@ package community.api;
 
 import akka.javasdk.testkit.TestKit;
 import akka.javasdk.testkit.TestKitSupport;
-import community.domain.MockEmailInboxService;
+import community.infrastructure.mock.MockEmailInboxService;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
+import community.application.workflow.EmailProcessingWorkflow;
 
 /**
  * Integration test for EmailEndpoint.
@@ -22,7 +23,7 @@ public class EmailEndpointTest extends TestKitSupport {
             .withDependencyProvider(new akka.javasdk.DependencyProvider() {
                 @Override
                 public <T> T getDependency(Class<T> clazz) {
-                    if (clazz.equals(community.domain.EmailInboxService.class)) {
+                    if (clazz.equals(community.domain.port.EmailInboxService.class)) {
                         // Provide fresh MockEmailInboxService with unique prefix for test isolation
                         return (T) new MockEmailInboxService(TEST_PREFIX);
                     }
@@ -35,7 +36,7 @@ public class EmailEndpointTest extends TestKitSupport {
     public void shouldProcessInboxViaEndpoint() {
         // Act: POST to /process-inbox endpoint
         var response = httpClient.POST("/process-inbox")
-            .responseBodyAs(community.application.EmailProcessingWorkflow.ProcessResult.class)
+            .responseBodyAs(EmailProcessingWorkflow.ProcessResult.class)
             .invoke();
 
         // Extract result from response
