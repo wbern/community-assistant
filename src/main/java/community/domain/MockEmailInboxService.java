@@ -86,9 +86,10 @@ public class MockEmailInboxService implements EmailInboxService {
             return List.of(email1, email2);
         });
 
-        // Filter emails by cursor (only return emails after 'since')
+        // Filter emails by cursor (return emails at or after 'since')
+        // Using >= instead of > because entity-level idempotency handles duplicates
         return allEmails.stream()
-            .filter(email -> email.getReceivedAt().isAfter(since))
+            .filter(email -> !email.getReceivedAt().isBefore(since))
             .collect(Collectors.toList());
     }
 }

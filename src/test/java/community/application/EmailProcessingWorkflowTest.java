@@ -6,6 +6,7 @@ import akka.javasdk.testkit.TestKitSupport;
 import akka.javasdk.testkit.TestModelProvider;
 import community.domain.EmailTags;
 import community.domain.MockEmailInboxService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -21,9 +22,18 @@ public class EmailProcessingWorkflowTest extends TestKitSupport {
 
     private final TestModelProvider agentModel = new TestModelProvider();
 
-    // Use unique ID prefix per test class to avoid state pollution
-    // All tests in this class share the same prefix, but it's unique across test runs
-    private static final String TEST_ID_PREFIX = "test-" + System.currentTimeMillis();
+    // Use unique ID prefix per test METHOD to ensure test isolation
+    // Each test gets a unique prefix based on timestamp + random UUID
+    private String currentTestPrefix;
+
+    /**
+     * Set unique test prefix before each test to ensure isolation.
+     * This ensures EVERY test gets unique email IDs from MockEmailInboxService.
+     */
+    @BeforeEach
+    public void setUpTestPrefix() {
+        currentTestPrefix = "test-" + System.currentTimeMillis() + "-" + java.util.UUID.randomUUID().toString().substring(0, 8);
+    }
 
     /**
      * Initialize workflow with unique cursor to ensure test isolation.
@@ -44,7 +54,10 @@ public class EmailProcessingWorkflowTest extends TestKitSupport {
                 @Override
                 public <T> T getDependency(Class<T> clazz) {
                     if (clazz.equals(community.domain.EmailInboxService.class)) {
-                        return (T) new MockEmailInboxService(TEST_ID_PREFIX);
+                        // Create NEW instance per test method using currentTestPrefix
+                        // This ensures each test gets unique email IDs and proper isolation
+                        String prefix = currentTestPrefix != null ? currentTestPrefix : "test-default";
+                        return (T) new MockEmailInboxService(prefix);
                     }
                     return null;
                 }
@@ -226,7 +239,13 @@ public class EmailProcessingWorkflowTest extends TestKitSupport {
             "First run should process 2 new emails");
         assertEquals(2, result1.emailTags().size());
 
-        // WHEN: Process emails second time (same workflow, same cursor = same emails, already processed)
+        // Reset cursor to BEFORE processed emails to simulate workflow replay/retry
+        // This tests that workflow skips already-processed emails even when they're fetched again
+        componentClient.forKeyValueEntity(workflowId)
+            .method(EmailSyncCursorEntity::updateCursor)
+            .invoke(Instant.parse("2025-01-06T00:00:00Z"));
+
+        // WHEN: Process emails second time (cursor reset, same emails fetched, but already processed)
         var result2 = componentClient.forWorkflow(workflowId)
             .method(EmailProcessingWorkflow::processInbox)
             .invoke(new EmailProcessingWorkflow.ProcessInboxCmd());

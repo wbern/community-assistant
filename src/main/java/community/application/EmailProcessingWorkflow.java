@@ -57,6 +57,7 @@ public class EmailProcessingWorkflow extends Workflow<EmailProcessingWorkflow.St
         }
 
         List<Email> emails = inboxService.fetchEmailsSince(cursor);
+        log.debug("Workflow {}: Fetched {} emails after cursor {}", cursorId, emails.size(), cursor);
 
         List<EmailTags> allTags = new ArrayList<>();
         int skippedCount = 0;
@@ -71,7 +72,8 @@ public class EmailProcessingWorkflow extends Workflow<EmailProcessingWorkflow.St
                 .invoke();
 
             if (Boolean.TRUE.equals(isProcessed)) {
-                log.info("Skipping already-processed email: {}", email.getMessageId());
+                log.debug("Skipping already-processed email: {} in workflow {}",
+                    email.getMessageId(), cursorId);
                 // Retrieve existing tags for response
                 EmailTags existingTags = componentClient.forEventSourcedEntity(email.getMessageId())
                     .method(EmailEntity::getTags)
@@ -80,6 +82,9 @@ public class EmailProcessingWorkflow extends Workflow<EmailProcessingWorkflow.St
                 skippedCount++;
                 continue;
             }
+
+            log.debug("Processing email: {} in workflow {}",
+                email.getMessageId(), cursorId);
 
             // Persist email using messageId as entity ID (allows multiple emails from same sender)
             componentClient.forEventSourcedEntity(email.getMessageId())

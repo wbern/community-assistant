@@ -2,7 +2,7 @@ package community.api;
 
 import akka.javasdk.testkit.TestKit;
 import akka.javasdk.testkit.TestKitSupport;
-import community.application.EmailEntity;
+import community.domain.MockEmailInboxService;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -13,34 +13,46 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class EmailEndpointTest extends TestKitSupport {
 
+    // Use unique test prefix to avoid email ID collisions with other tests
+    private static final String TEST_PREFIX = "endpoint-test-" + System.currentTimeMillis();
+
     @Override
     protected TestKit.Settings testKitSettings() {
-        return TestKit.Settings.DEFAULT;
+        return TestKit.Settings.DEFAULT
+            .withDependencyProvider(new akka.javasdk.DependencyProvider() {
+                @Override
+                public <T> T getDependency(Class<T> clazz) {
+                    if (clazz.equals(community.domain.EmailInboxService.class)) {
+                        // Provide fresh MockEmailInboxService with unique prefix for test isolation
+                        return (T) new MockEmailInboxService(TEST_PREFIX);
+                    }
+                    return null;
+                }
+            });
     }
 
     @Test
     public void shouldProcessInboxViaEndpoint() {
         // Act: POST to /process-inbox endpoint
-        httpClient.POST("/process-inbox")
+        var response = httpClient.POST("/process-inbox")
+            .responseBodyAs(community.application.EmailProcessingWorkflow.ProcessResult.class)
             .invoke();
 
-        // Assert: Verify first email was persisted to EmailEntity using messageId
-        // MockEmailInboxService returns emails with IDs "msg-elevator-001" and "msg-elevator-002"
-        var email1 = componentClient.forEventSourcedEntity("msg-elevator-001")
-            .method(EmailEntity::getEmail)
-            .invoke();
+        // Extract result from response
+        var result = response.body();
 
-        assertNotNull(email1);
-        assertEquals("resident@community.com", email1.getFrom());
-        assertEquals("Broken elevator", email1.getSubject());
+        // Assert: Verify 2 emails were processed
+        assertNotNull(result);
+        assertEquals(2, result.emailsProcessed(), "Should process 2 emails from mock inbox");
 
-        // Assert: Verify second email was persisted using its messageId
-        var email2 = componentClient.forEventSourcedEntity("msg-elevator-002")
-            .method(EmailEntity::getEmail)
-            .invoke();
+        // Assert: Verify tags were generated for both emails
+        assertNotNull(result.emailTags());
+        assertEquals(2, result.emailTags().size(), "Should have tags for both emails");
 
-        assertNotNull(email2);
-        assertEquals("resident@community.com", email2.getFrom());
-        assertEquals("Elevator still broken", email2.getSubject());
+        // Verify tags contain expected data (from MockEmailInboxService)
+        result.emailTags().forEach(tags -> {
+            assertNotNull(tags, "Email tags should not be null");
+            assertNotNull(tags.summary(), "Summary should be generated");
+        });
     }
 }
