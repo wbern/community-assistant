@@ -37,12 +37,35 @@
 - Simple CRUD patterns
 - Patterns in quick reference below
 
-### Package Structure
+### Package Structure (DDD + Akka SDK)
+
+Following official Akka SDK documentation and DDD principles:
+
 ```
-domain/       - State records, event interfaces (NO Akka deps)
-application/  - Entities, Views, Workflows, Agents, Consumers
-api/          - HTTP/gRPC Endpoints
+domain/
+  model/      - Pure business models (Email, EmailTags, SheetRow) - NO Akka deps
+  port/       - Interface definitions (EmailInboxService, SheetSyncService)
+application/
+  entity/     - EventSourced/KeyValue Entities (EmailEntity, SheetSyncBufferEntity)
+  workflow/   - Workflow orchestrators (EmailProcessingWorkflow)
+  agent/      - AI agents (EmailTaggingAgent, ChatHandlerAgent)
+  view/       - Read model projections (TopicsView)
+  action/     - TimedActions and Consumers (SheetSyncFlushAction, GoogleSheetConsumer)
+infrastructure/
+  gmail/      - Gmail API implementation (GmailInboxService)
+  sheets/     - Google Sheets implementation (GoogleSheetSyncService)
+  mock/       - Test implementations (MockEmailInboxService, MockSheetSyncService)
+  config/     - Service configuration and DI setup (ServiceConfiguration)
+api/          - HTTP/gRPC Endpoints (ChatEndpoint, EmailEndpoint)
 ```
+
+**Dependency Flow:** API → Application → Domain ← Infrastructure
+
+**Key Principles:**
+- Domain layer is pure Java with no external dependencies
+- Infrastructure implements domain ports
+- Application orchestrates domain and infrastructure
+- Tests mirror source structure exactly
 
 ### Component Types & Naming
 
@@ -154,6 +177,39 @@ public class CreditCardEndpoint {
 **gRPC Endpoint** (`{Domain}GrpcEndpointImpl`) - Implements proto interface
 - Define `.proto` in `src/main/proto`, class name with `Impl` suffix
 - Use private `toApi()` converters
+
+### DI Configuration & Service Setup
+
+**ServiceConfiguration Pattern:**
+```java
+package community.infrastructure.config;
+
+public class ServiceConfiguration implements ServiceSetup {
+  @Override
+  public DependencyProvider createDependencyProvider() {
+    return new DependencyProvider() {
+      @Override
+      public <T> T getDependency(Class<T> aClass) {
+        // Infrastructure implementations
+        if (aClass.equals(community.domain.port.EmailInboxService.class)) {
+          return (T) new community.infrastructure.gmail.GmailInboxService(gmailUserEmail);
+        }
+        if (aClass.equals(community.domain.port.SheetSyncService.class)) {
+          return (T) new community.infrastructure.sheets.GoogleSheetSyncService(spreadsheetId);
+        }
+        return null;
+      }
+    };
+  }
+}
+```
+
+**Key Patterns:**
+- Main class renamed from `Bootstrap` to `ServiceConfiguration` for clarity
+- Lives in `infrastructure/config/` package (infrastructure concern)
+- Wires domain ports to infrastructure implementations
+- Uses fully qualified names to avoid import conflicts
+- Environment-based configuration via `.env` loading
 
 ### Critical Patterns
 
