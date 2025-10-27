@@ -153,13 +153,18 @@ public class GmailInboxService implements EmailInboxService {
         // Extract body text
         String body = extractBody(message);
 
-        return Email.create(
-            message.getId(),
-            from != null ? from : "unknown@unknown.com",
-            subject != null ? subject : "(No Subject)",
-            body != null ? body : "",
-            receivedAt
-        );
+        // Validate required Gmail API data - fail fast instead of creating fake data
+        if (from == null || from.isEmpty()) {
+            throw new IllegalStateException("Gmail API returned message without From header: " + message.getId());
+        }
+        if (subject == null) {
+            throw new IllegalStateException("Gmail API returned message without Subject header: " + message.getId());
+        }
+        if (body == null) {
+            throw new IllegalStateException("Gmail API returned message without body: " + message.getId());
+        }
+
+        return Email.create(message.getId(), from, subject, body, receivedAt);
     }
 
     /**

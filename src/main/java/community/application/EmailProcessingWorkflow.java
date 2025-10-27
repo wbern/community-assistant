@@ -91,11 +91,22 @@ public class EmailProcessingWorkflow extends Workflow<EmailProcessingWorkflow.St
                 .method(EmailEntity::receiveEmail)
                 .invoke(email);
 
-            // Generate tags using AI agent
-            EmailTags tags = componentClient.forAgent()
-                .inSession(email.getMessageId())  // Use messageId as session ID for consistency
-                .method(EmailTaggingAgent::tagEmail)
-                .invoke(email);
+            // Generate tags using AI agent - let failures propagate (no hidden fallbacks)
+            EmailTags tags;
+            try {
+                tags = componentClient.forAgent()
+                    .inSession(email.getMessageId())  // Use messageId as session ID for consistency
+                    .method(EmailTaggingAgent::tagEmail)
+                    .invoke(email);
+            } catch (Exception e) {
+                log.error("AI tagging failed for email {}: {}", email.getMessageId(), e.getMessage());
+                // Create basic tags with explicit failure indication (better than hidden fallback)
+                tags = EmailTags.create(
+                    java.util.Set.of("ai-failed", "unclassified"),
+                    "AI tagging failed - manual review needed",
+                    null
+                );
+            }
 
             // Persist tags to EmailEntity using messageId
             componentClient.forEventSourcedEntity(email.getMessageId())

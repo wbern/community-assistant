@@ -120,9 +120,7 @@ public class Bootstrap implements ServiceSetup {
               sheetSyncServiceInstance = new community.domain.GoogleSheetSyncService(spreadsheetId);
               return (T) sheetSyncServiceInstance;
             } catch (Exception e) {
-              log.warn("Failed to initialize GoogleSheetSyncService, falling back to MockSheetSyncService", e);
-              sheetSyncServiceInstance = MOCK_SHEET_SERVICE;
-              return (T) MOCK_SHEET_SERVICE;
+              throw new RuntimeException("Failed to initialize GoogleSheetSyncService. Check GOOGLE_APPLICATION_CREDENTIALS and Sheets API access: " + e.getMessage(), e);
             }
           } else {
             log.info("Using MockSheetSyncService (SPREADSHEET_ID not set)");
@@ -155,9 +153,7 @@ public class Bootstrap implements ServiceSetup {
               emailInboxServiceInstance = new GmailInboxService(gmailUserEmail);
               return (T) emailInboxServiceInstance;
             } catch (Exception e) {
-              log.warn("Failed to initialize GmailInboxService, falling back to MockEmailInboxService", e);
-              emailInboxServiceInstance = new MockEmailInboxService();
-              return (T) emailInboxServiceInstance;
+              throw new RuntimeException("Failed to initialize GmailInboxService. Check GOOGLE_APPLICATION_CREDENTIALS and Gmail API access: " + e.getMessage(), e);
             }
           } else {
             log.info("Using MockEmailInboxService (GOOGLE_APPLICATION_CREDENTIALS or GMAIL_USER_EMAIL not set)");

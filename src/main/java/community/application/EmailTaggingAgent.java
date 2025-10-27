@@ -51,18 +51,11 @@ public class EmailTaggingAgent extends Agent {
             email.getBody()
         );
 
+        // Remove fallback - let AI failures propagate to caller for explicit handling
         return effects()
             .systemMessage(SYSTEM_PROMPT)
             .userMessage(userMessage)
             .responseConformsTo(EmailTags.class)
-            .onFailure(throwable -> {
-                // Fallback to basic tags if AI fails
-                return EmailTags.create(
-                    java.util.Set.of("unclassified"),
-                    "Error processing email: " + email.getSubject(),
-                    null
-                );
-            })
             .thenReply();
     }
 }
