@@ -32,6 +32,10 @@ public class Bootstrap implements ServiceSetup {
   private final ComponentClient componentClient;
   private final TimerScheduler timerScheduler;
 
+  // Instance-based cache for expensive services (not static, allows test isolation)
+  private SheetSyncService sheetSyncServiceInstance;
+  private EmailInboxService emailInboxServiceInstance;
+
   private static void loadEnvVar(Dotenv dotenv, String key) {
     String value = dotenv.get(key);
     if (value != null && !value.isEmpty() && System.getenv(key) == null) {
@@ -99,6 +103,11 @@ public class Bootstrap implements ServiceSetup {
           return (T) new EmailClient();
         }
         if (aClass.equals(SheetSyncService.class)) {
+          // Return cached instance if available (prevents expensive re-initialization)
+          if (sheetSyncServiceInstance != null) {
+            return (T) sheetSyncServiceInstance;
+          }
+
           // Use real GoogleSheetSyncService if spreadsheet ID is available, otherwise mock
           String spreadsheetId = System.getenv("SPREADSHEET_ID");
           if (spreadsheetId == null) {
@@ -108,17 +117,25 @@ public class Bootstrap implements ServiceSetup {
           if (spreadsheetId != null && !spreadsheetId.isEmpty()) {
             try {
               log.info("Initializing GoogleSheetSyncService with spreadsheet ID: {}", spreadsheetId);
-              return (T) new community.domain.GoogleSheetSyncService(spreadsheetId);
+              sheetSyncServiceInstance = new community.domain.GoogleSheetSyncService(spreadsheetId);
+              return (T) sheetSyncServiceInstance;
             } catch (Exception e) {
               log.warn("Failed to initialize GoogleSheetSyncService, falling back to MockSheetSyncService", e);
+              sheetSyncServiceInstance = MOCK_SHEET_SERVICE;
               return (T) MOCK_SHEET_SERVICE;
             }
           } else {
             log.info("Using MockSheetSyncService (SPREADSHEET_ID not set)");
+            sheetSyncServiceInstance = MOCK_SHEET_SERVICE;
             return (T) MOCK_SHEET_SERVICE;
           }
         }
         if (aClass.equals(EmailInboxService.class)) {
+          // Return cached instance if available (prevents expensive re-initialization)
+          if (emailInboxServiceInstance != null) {
+            return (T) emailInboxServiceInstance;
+          }
+
           // Use real Gmail if credentials are available, otherwise mock
           // Check both environment and system properties (for .env support)
           String credentialsPath = System.getenv("GOOGLE_APPLICATION_CREDENTIALS");
@@ -135,14 +152,17 @@ public class Bootstrap implements ServiceSetup {
               gmailUserEmail != null && !gmailUserEmail.isEmpty()) {
             try {
               log.info("Initializing GmailInboxService for {}", gmailUserEmail);
-              return (T) new GmailInboxService(gmailUserEmail);
+              emailInboxServiceInstance = new GmailInboxService(gmailUserEmail);
+              return (T) emailInboxServiceInstance;
             } catch (Exception e) {
               log.warn("Failed to initialize GmailInboxService, falling back to MockEmailInboxService", e);
-              return (T) new MockEmailInboxService();
+              emailInboxServiceInstance = new MockEmailInboxService();
+              return (T) emailInboxServiceInstance;
             }
           } else {
             log.info("Using MockEmailInboxService (GOOGLE_APPLICATION_CREDENTIALS or GMAIL_USER_EMAIL not set)");
-            return (T) new MockEmailInboxService();
+            emailInboxServiceInstance = new MockEmailInboxService();
+            return (T) emailInboxServiceInstance;
           }
         }
         return null;

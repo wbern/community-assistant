@@ -72,7 +72,11 @@ public class GoogleSheetSyncService implements SheetSyncService {
      * Create Sheets service with credentials from environment.
      */
     private Sheets createSheetsService() throws GeneralSecurityException, IOException {
+        // Check both environment and system properties (for .env support)
         String credentialsPath = System.getenv("GOOGLE_APPLICATION_CREDENTIALS");
+        if (credentialsPath == null) {
+            credentialsPath = System.getProperty("GOOGLE_APPLICATION_CREDENTIALS");
+        }
         if (credentialsPath == null || credentialsPath.isEmpty()) {
             throw new IllegalStateException("GOOGLE_APPLICATION_CREDENTIALS environment variable not set");
         }
