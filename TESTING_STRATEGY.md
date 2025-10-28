@@ -62,23 +62,24 @@ void testTagging() {
 @Override
 protected TestKit.Settings testKitSettings() {
     return TestKit.Settings.DEFAULT
-        .withModelProvider(EmailTaggingAgent.class,
-            new OpenAIModelProvider(
-                "http://localhost:11434/v1",  // Ollama endpoint
-                "smollm2:135m-instruct-q4_0"  // Model name
-            ));
+        .withAdditionalConfig("akka.javasdk.agent.openai.base-url = \"http://localhost:11434/v1\"")
+        .withAdditionalConfig("akka.javasdk.agent.openai.model = \"smollm2:135m-instruct-q4_0\"");
 }
 
 @Test
 void integrationTestWithNanoLLM() {
     // Real LLM interaction, but small and fast
     var result = componentClient.forAgent()
-        .method(EmailTaggingAgent::generateTags)
+        .method(EmailTaggingAgent::tagEmail)
         .invoke(email);
 
-    // Assert on actual LLM output structure
+    // Assert on actual LLM output structure (not exact values)
     assertNotNull(result.tags());
     assertTrue(result.tags().size() > 0);
+
+    // Semantic validation instead of exact match
+    String content = String.join(" ", result.tags()) + " " + result.summary();
+    assertTrue(content.toLowerCase().contains("expected-keyword"));
 }
 ```
 
@@ -284,6 +285,53 @@ jobs:
 5. **CI/CD Friendly:** Fast enough for every commit
 6. **Production Confidence:** Real LLM tests catch integration issues
 7. **Gradual Validation:** Test increasingly realistic scenarios
+
+## Working Example
+
+**See `EmailTaggingAgentWithSmolLM2Test.java`** for a complete working example:
+
+```java
+public class EmailTaggingAgentWithSmolLM2Test extends TestKitSupport {
+    @Override
+    protected TestKit.Settings testKitSettings() {
+        return TestKit.Settings.DEFAULT
+            .withAdditionalConfig("akka.javasdk.agent.openai.base-url = \"http://localhost:11434/v1\"")
+            .withAdditionalConfig("akka.javasdk.agent.openai.model = \"smollm2:135m-instruct-q4_0\"");
+    }
+
+    @Test
+    public void shouldGenerateTagsForMaintenanceEmail() {
+        Email email = Email.create(
+            "msg-urgent-123",
+            "resident@community.com",
+            "Broken elevator",
+            "The elevator in Building A has been broken for 2 days. This is urgent!"
+        );
+
+        // Call agent with REAL SmolLM2 (no mocking)
+        EmailTags tags = componentClient.forAgent()
+            .inSession("test-session-1")
+            .method(EmailTaggingAgent::tagEmail)
+            .invoke(email);
+
+        // Semantic assertions (not exact match)
+        String allContent = String.join(" ", tags.tags()) + " " + tags.summary();
+        assertTrue(allContent.toLowerCase().contains("elevator") ||
+                   allContent.toLowerCase().contains("maintenance"));
+    }
+}
+```
+
+**SmolLM2 Output:**
+```
+EmailTags[
+  tags=[elevator, building-a, urgent, maintenance],
+  summary=The elevator in Building A has been broken for 2 days and needs urgent attention.,
+  location=Building A
+]
+```
+
+**Key Insight:** SmolLM2-135M performs surprisingly well for structured output tasks! Tests run in ~3-5 seconds vs milliseconds for fake agents, but provide realistic LLM behavior validation.
 
 ## Future Enhancements
 
