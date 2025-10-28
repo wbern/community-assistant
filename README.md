@@ -3,6 +3,8 @@
 A sample application demonstrating how to build a customer service agent for real estate inquiries,
 by combining Akka features and an LLM model.
 
+📐 **Architecture Documentation**: See [ARCHITECTURE.md](ARCHITECTURE.md) for visual diagrams of the current implementation using Mermaid notation.
+
 ## Overview
 
 This project illustrates an Agentic workflow for real estate customer service using Akka. The agent:

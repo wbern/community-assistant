@@ -25,7 +25,7 @@ public class TopicsView extends View {
         
         public Effect<SheetRow> onEvent(EmailEntity.Event event) {
             String entityId = updateContext().eventSubject().orElse("");
-            
+
             return switch(event) {
                 case EmailEntity.Event.EmailReceived received -> {
                     // Create initial row from email only, providing defaults for missing fields
@@ -35,7 +35,7 @@ public class TopicsView extends View {
                         received.email().getSubject(),
                         received.email().getBody(),
                         "", // Empty tags initially
-                        "", // Empty summary initially  
+                        "", // Empty summary initially
                         ""  // Empty location initially
                     );
                     yield effects().updateRow(row);
@@ -48,7 +48,7 @@ public class TopicsView extends View {
                         SheetRow updatedRow = new SheetRow(
                             currentRow.messageId(),
                             currentRow.from(),
-                            currentRow.subject(), 
+                            currentRow.subject(),
                             currentRow.body(),
                             String.join(", ", tagsEvent.tags().tags()),
                             tagsEvent.tags().summary() != null ? tagsEvent.tags().summary() : "",
@@ -68,6 +68,10 @@ public class TopicsView extends View {
                         );
                         yield effects().updateRow(row);
                     }
+                }
+                case EmailEntity.Event.InquiryAddressed addressed -> {
+                    // Inquiry addressed - no changes needed to the topics view
+                    yield effects().ignore();
                 }
             };
         }

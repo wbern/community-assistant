@@ -9,7 +9,8 @@ import java.time.Instant;
 public class Email {
 
     public enum Status {
-        UNPROCESSED
+        UNPROCESSED,
+        ADDRESSED
     }
 
     private final String messageId;
@@ -78,5 +79,9 @@ public class Email {
 
     public Instant getReceivedAt() {
         return receivedAt;
+    }
+
+    public Email markAsAddressed() {
+        return new Email(messageId, from, subject, body, Status.ADDRESSED, receivedAt);
     }
 }

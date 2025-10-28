@@ -198,4 +198,65 @@ public class EmailEntityTest {
         assertEquals(2, state.tags().tags().size());
         assertTrue(state.tags().tags().contains("urgent"));
     }
+
+    @Test
+    public void shouldMarkEmailAsAddressed() {
+        // Unit test for markAsAddressed command
+        EventSourcedTestKit<EmailEntity.State, EmailEntity.Event, EmailEntity> testKit =
+            EventSourcedTestKit.of(EmailEntity::new);
+
+        // Receive email first
+        Email email = Email.create(
+            "email-005",
+            "resident@building.com",
+            "Water leak in basement",
+            "There's a water leak in the basement storage area near unit 3A. Please investigate."
+        );
+        testKit.method(EmailEntity::receiveEmail).invoke(email);
+
+        // Mark email as addressed
+        EventSourcedResult<String> result = testKit.method(EmailEntity::markAsAddressed).invoke();
+
+        // Verify response
+        assertTrue(result.isReply());
+        assertEquals("Marked as addressed", result.getReply());
+
+        // Verify event was emitted
+        assertEquals(1, result.getAllEvents().size());
+        assertTrue(result.getAllEvents().get(0) instanceof EmailEntity.Event.InquiryAddressed);
+
+        // Verify state was updated
+        assertEquals(Email.Status.ADDRESSED, testKit.getState().email().getStatus());
+    }
+
+    @Test
+    public void shouldBeIdempotentWhenMarkingAsAddressedTwice() {
+        // Test that marking as addressed twice is idempotent
+        EventSourcedTestKit<EmailEntity.State, EmailEntity.Event, EmailEntity> testKit =
+            EventSourcedTestKit.of(EmailEntity::new);
+
+        // Receive email first
+        Email email = Email.create(
+            "email-idempotent-addressed",
+            "resident@building.com",
+            "Test subject",
+            "Test body"
+        );
+        testKit.method(EmailEntity::receiveEmail).invoke(email);
+
+        // First mark as addressed
+        EventSourcedResult<String> result1 = testKit.method(EmailEntity::markAsAddressed).invoke();
+        assertTrue(result1.isReply());
+        assertEquals(1, result1.getAllEvents().size(), "First call should emit 1 event");
+
+        // Second mark as addressed - should be idempotent
+        EventSourcedResult<String> result2 = testKit.method(EmailEntity::markAsAddressed).invoke();
+        assertTrue(result2.isReply());
+        assertEquals(0, result2.getAllEvents().size(),
+            "Second call should not emit event (idempotent)");
+        assertEquals("Already marked as addressed", result2.getReply());
+
+        // State should still be ADDRESSED
+        assertEquals(Email.Status.ADDRESSED, testKit.getState().email().getStatus());
+    }
 }

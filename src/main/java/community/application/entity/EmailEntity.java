@@ -33,6 +33,9 @@ public class EmailEntity extends EventSourcedEntity<EmailEntity.State, EmailEnti
 
         @TypeName("tags-generated")
         record TagsGenerated(EmailTags tags) implements Event {}
+
+        @TypeName("inquiry-addressed")
+        record InquiryAddressed() implements Event {}
     }
 
     @Override
@@ -45,6 +48,7 @@ public class EmailEntity extends EventSourcedEntity<EmailEntity.State, EmailEnti
         return switch (event) {
             case Event.EmailReceived e -> currentState().withEmail(e.email());
             case Event.TagsGenerated e -> currentState().withTags(e.tags());
+            case Event.InquiryAddressed e -> currentState().withEmail(currentState().email().markAsAddressed());
         };
     }
 
@@ -84,5 +88,20 @@ public class EmailEntity extends EventSourcedEntity<EmailEntity.State, EmailEnti
 
     public ReadOnlyEffect<Boolean> isFullyProcessed() {
         return effects().reply(currentState().isFullyProcessed());
+    }
+
+    public Effect<String> markAsAddressed() {
+        if (!currentState().hasEmail()) {
+            return effects().error("Email not yet received");
+        }
+
+        if (currentState().email().getStatus() == Email.Status.ADDRESSED) {
+            // Idempotent: already marked as addressed
+            return effects().reply("Already marked as addressed");
+        }
+
+        return effects()
+            .persist(new Event.InquiryAddressed())
+            .thenReply(__ -> "Marked as addressed");
     }
 }

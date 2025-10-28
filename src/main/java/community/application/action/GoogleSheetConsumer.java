@@ -32,24 +32,36 @@ public class GoogleSheetConsumer extends Consumer {
         // Get the entity ID (which is the messageId)
         String messageId = messageContext().eventSubject().get();
 
-        // Convert event to SheetRow
-        SheetRow row = switch (event) {
+        // Convert event to SheetRow if applicable
+        return switch (event) {
             case EmailEntity.Event.EmailReceived emailReceived -> {
                 Email email = emailReceived.email();
-                yield SheetRow.fromEmail(email);
+                SheetRow row = SheetRow.fromEmail(email);
+
+                // Add row to buffer (will be flushed periodically by TimedAction)
+                componentClient
+                    .forKeyValueEntity(BUFFER_ENTITY_ID)
+                    .method(SheetSyncBufferEntity::addRow)
+                    .invoke(row);
+
+                yield effects().done();
             }
             case EmailEntity.Event.TagsGenerated tagsGenerated -> {
                 EmailTags tags = tagsGenerated.tags();
-                yield SheetRow.onlyTags(messageId, tags);
+                SheetRow row = SheetRow.onlyTags(messageId, tags);
+
+                // Add row to buffer (will be flushed periodically by TimedAction)
+                componentClient
+                    .forKeyValueEntity(BUFFER_ENTITY_ID)
+                    .method(SheetSyncBufferEntity::addRow)
+                    .invoke(row);
+
+                yield effects().done();
+            }
+            case EmailEntity.Event.InquiryAddressed addressed -> {
+                // Inquiry addressed - no sheet sync needed for this event
+                yield effects().done();
             }
         };
-
-        // Add row to buffer (will be flushed periodically by TimedAction)
-        componentClient
-            .forKeyValueEntity(BUFFER_ENTITY_ID)
-            .method(SheetSyncBufferEntity::addRow)
-            .invoke(row);
-
-        return effects().done();
     }
 }
