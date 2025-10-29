@@ -73,6 +73,63 @@
           </environmentVariables>
         </configuration>
       </plugin>
+      <!-- JaCoCo test coverage plugin -->
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>0.8.12</version>
+        <executions>
+          <!-- Prepare agent for unit tests -->
+          <execution>
+            <id>prepare-agent</id>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+          </execution>
+          <!-- Generate report after tests -->
+          <execution>
+            <id>report</id>
+            <phase>test</phase>
+            <goals>
+              <goal>report</goal>
+            </goals>
+          </execution>
+          <!-- Coverage check with thresholds -->
+          <execution>
+            <id>check</id>
+            <goals>
+              <goal>check</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <rule>
+                  <element>BUNDLE</element>
+                  <limits>
+                    <limit>
+                      <counter>LINE</counter>
+                      <value>COVEREDRATIO</value>
+                      <minimum>0.80</minimum>
+                    </limit>
+                  </limits>
+                </rule>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+        <configuration>
+          <excludes>
+            <!-- Exclude generated code, configs, and main classes -->
+            <exclude>**/infrastructure/config/**</exclude>
+            <exclude>**/ServiceConfiguration.class</exclude>
+            <exclude>**/Bootstrap.class</exclude>
+            <!-- Exclude poorly-covered infrastructure adapters (external integrations) -->
+            <exclude>**/infrastructure/sheets/**</exclude>
+            <exclude>**/infrastructure/gmail/**</exclude>
+            <!-- Exclude legacy realestate package (0% coverage, candidate for removal) -->
+            <exclude>realestate/**</exclude>
+          </excludes>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 </project>

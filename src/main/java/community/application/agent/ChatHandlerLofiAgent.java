@@ -11,15 +11,16 @@ import community.application.view.InquiriesView;
 /**
  * Lofi chat handler for board member messages using pattern matching.
  * Recognizes keywords and responds with pre-defined templates.
- * Can be upgraded to AI later while maintaining same interface.
+ *
+ * <p>Contrast with ChatHandlerAIAgent which uses LLM for natural language understanding.
  */
-@Component(id = "chat-handler-agent")
-public class ChatHandlerAgent extends Agent {
+@Component(id = "chat-handler-lofi-agent")
+public class ChatHandlerLofiAgent extends Agent {
 
     private final ComponentClient componentClient;
     private final AgentContext agentContext;
 
-    public ChatHandlerAgent(ComponentClient componentClient, AgentContext agentContext) {
+    public ChatHandlerLofiAgent(ComponentClient componentClient, AgentContext agentContext) {
         this.componentClient = componentClient;
         this.agentContext = agentContext;
     }

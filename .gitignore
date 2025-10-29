@@ -19,6 +19,10 @@ log/
 target/
 effective-pom.xml
 
+# JaCoCo test coverage
+target/site/jacoco/
+target/jacoco.exec
+
 #local db
 db.mv.db
 .qodo

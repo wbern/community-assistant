@@ -13,10 +13,12 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for EmailTaggingAgent.
- * RED phase: Testing AI-driven email tagging with mocked LLM responses.
+ * UNIT tests for EmailTaggingAgent.
+ * Tests AI-driven email tagging with mocked LLM responses (TestModelProvider).
+ *
+ * <p>For integration tests with real SmolLM2, see EmailTaggingAgentIntegrationTest.
  */
-public class EmailTaggingAgentTest extends TestKitSupport {
+public class EmailTaggingAgentUnitTest extends TestKitSupport {
 
     private final TestModelProvider agentModel = new TestModelProvider();
 

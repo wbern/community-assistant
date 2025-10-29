@@ -9,10 +9,13 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * SAME tests as EmailTaggingAgentTest but with SmolLM2 instead of fake model.
+ * INTEGRATION tests for EmailTaggingAgent with SmolLM2.
  *
- * <p>This demonstrates the "Theory" pattern: same test logic, different model provider.
- * Compare assertions to see how SmolLM2 performs vs fake model expectations.
+ * <p>This demonstrates the "Theory" pattern: same test logic as unit tests,
+ * but with real LLM instead of mocked responses. Compare assertions to see
+ * how SmolLM2 performs vs fake model expectations.
+ *
+ * <p>Contrast with EmailTaggingAgentUnitTest which uses mocked LLM responses.
  *
  * <h3>Prerequisites</h3>
  * <pre>
@@ -22,17 +25,17 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * <h3>Run Tests</h3>
  * <pre>
- * # Run only fake tests (fast)
- * mvn test -Dtest=EmailTaggingAgentTest
+ * # Run only unit tests (fast, mocked)
+ * mvn test -Dtest=EmailTaggingAgentUnitTest
  *
- * # Run with SmolLM2 (realistic, requires Ollama)
- * mvn test -Dtest=EmailTaggingAgentWithSmolLM2Test
+ * # Run integration tests (realistic, requires Ollama)
+ * mvn test -Dtest=EmailTaggingAgentIntegrationTest
  *
  * # Run both to compare
  * mvn test -Dtest=EmailTaggingAgent*Test
  * </pre>
  */
-public class EmailTaggingAgentWithSmolLM2Test extends TestKitSupport {
+public class EmailTaggingAgentIntegrationTest extends TestKitSupport {
 
     @Override
     protected TestKit.Settings testKitSettings() {

@@ -25,9 +25,9 @@ public class ChatEndpoint {
     public ChatResponse sendMessage(ChatRequest request) {
         String agentResponse = componentClient.forAgent()
             .inSession("terminal-session")
-            .method(community.application.agent.ChatHandlerAgent::handleMessage)
+            .method(community.application.agent.ChatHandlerLofiAgent::handleMessage)
             .invoke(request.message());
-        
+
         return new ChatResponse(agentResponse);
     }
 }

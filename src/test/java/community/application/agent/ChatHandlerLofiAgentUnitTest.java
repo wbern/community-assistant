@@ -38,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *   <li><b>Integration tests (this class):</b> Test agent behavior and view projections</li>
  * </ul>
  */
-public class ChatHandlerAgentTest extends TestKitSupport {
+public class ChatHandlerLofiAgentUnitTest extends TestKitSupport {
 
     @Override
     protected TestKit.Settings testKitSettings() {
@@ -89,7 +89,7 @@ public class ChatHandlerAgentTest extends TestKitSupport {
         // Act: Call agent to handle chat message  
         String response = componentClient.forAgent()
             .inSession("topic-session-1")
-            .method(ChatHandlerAgent::handleMessage)
+            .method(ChatHandlerLofiAgent::handleMessage)
             .invoke(boardMemberMessage);
 
         // Assert: Should lookup and return topic with elevator tag
@@ -106,7 +106,7 @@ public class ChatHandlerAgentTest extends TestKitSupport {
         // Act: Call agent to handle chat message  
         String response = componentClient.forAgent()
             .inSession("topic-session-2")
-            .method(ChatHandlerAgent::handleMessage)
+            .method(ChatHandlerLofiAgent::handleMessage)
             .invoke(boardMemberMessage);
 
         // Assert: Should lookup and return topic with noise tag (different ID than elevator)
@@ -145,7 +145,7 @@ public class ChatHandlerAgentTest extends TestKitSupport {
             // Act: Call agent to handle chat message  
             String response = componentClient.forAgent()
                 .inSession("topic-session-3")
-                .method(ChatHandlerAgent::handleMessage)
+                .method(ChatHandlerLofiAgent::handleMessage)
                 .invoke(boardMemberMessage);
 
             // Assert: Should find the maintenance topic and return its ID
@@ -184,7 +184,7 @@ public class ChatHandlerAgentTest extends TestKitSupport {
         Awaitility.await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
             String response = componentClient.forAgent()
                 .inSession("board-session-1")
-                .method(ChatHandlerAgent::handleMessage)
+                .method(ChatHandlerLofiAgent::handleMessage)
                 .invoke(boardMemberQuery);
 
             // Assert: Should return elevator email content, not generic community response
@@ -301,7 +301,7 @@ public class ChatHandlerAgentTest extends TestKitSupport {
 
         String response = componentClient.forAgent()
             .inSession(chatSessionId)
-            .method(ChatHandlerAgent::handleMessage)
+            .method(ChatHandlerLofiAgent::handleMessage)
             .invoke(boardMemberReply);
 
         // Assert: Verify the assistant acknowledged the board member's response with exact message

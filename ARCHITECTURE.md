@@ -31,13 +31,16 @@ flowchart LR
     Entity --> Views[Views]
     Entity --> Consumer[GoogleSheetConsumer]
     Consumer --> Sheets[📊 Google Sheets]
-    Board[👤 Board Member] --> Chat[ChatHandlerAgent]
+    Board[👤 Board Member] -->|Natural Language| ChatAI[ChatHandlerAIAgent]
+    Board -->|Keywords| Chat[ChatHandlerAgent]
+    ChatAI --> Entity
     Chat --> Views
     Chat --> Entity
 
     style Gmail fill:#e1f5ff
     style Board fill:#e1f5ff
     style Sheets fill:#e1f5ff
+    style ChatAI fill:#fff3e0
 ```
 
 ## Component Count
@@ -46,12 +49,41 @@ flowchart LR
 |------|-------|----------|
 | **EventSourced Entities** | 1 | EmailEntity |
 | **KeyValue Entities** | 2 | SheetSyncBufferEntity, EmailSyncCursorEntity |
-| **Agents** | 2 | ChatHandlerAgent, EmailTaggingAgent |
+| **Agents** | 3 | ChatHandlerAgent (lofi), ChatHandlerAIAgent (AI), EmailTaggingAgent |
 | **Workflows** | 1 | EmailProcessingWorkflow |
 | **Views** | 2 | InquiriesView, TopicsView |
 | **Consumers** | 1 | GoogleSheetConsumer |
 | **TimedActions** | 1 | SheetSyncFlushAction |
 | **HTTP Endpoints** | 2 | ChatEndpoint, EmailEndpoint |
+
+## Board Member Chat Interaction
+
+Two approaches for handling board member responses to inquiries:
+
+```mermaid
+graph TD
+    BoardMsg["👤 Board Member Message<br/>'I've contacted the plumber.<br/>They'll come tomorrow at 9 AM.'"]
+
+    BoardMsg -->|Option 1| LoFi[ChatHandlerAgent<br/>⚡ Pattern Matching]
+    BoardMsg -->|Option 2| AI[ChatHandlerAIAgent<br/>🤖 Natural Language]
+
+    LoFi -->|"Looks for '@assistant' keyword"| LoFiAction[Mark as Addressed]
+    AI -->|"AI understands intent"| AIAction[Mark as Addressed]
+
+    LoFiAction --> Entity[EmailEntity]
+    AIAction --> Entity
+
+    Entity --> LoFiReply["Fixed: 'Noted. The inquiry<br/>has been marked as addressed.'"]
+    Entity --> AIReply["Natural: 'Thank you for your<br/>prompt action in addressing<br/>the resident's inquiry.'"]
+
+    style LoFi fill:#e8f5e9
+    style AI fill:#fff3e0
+    style BoardMsg fill:#e1f5ff
+```
+
+**When to use:**
+- **ChatHandlerAgent (LoFi)**: Fast, deterministic, keyword-based (current default)
+- **ChatHandlerAIAgent (AI)**: Natural language understanding, flexible responses (tested with SmolLM2)
 
 ## Key Files
 
