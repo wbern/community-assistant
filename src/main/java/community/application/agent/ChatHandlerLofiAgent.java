@@ -35,7 +35,8 @@ public class ChatHandlerLofiAgent extends Agent {
 
         // Board member responding to inquiry with @assistant mention
         // Session ID pattern: board-inquiry-session-{emailId}
-        if (lowerMessage.contains("@assistant")) {
+        // Only treat as inquiry reply if message does NOT end with '?'
+        if (lowerMessage.contains("@assistant") && !message.trim().endsWith("?")) {
             String sessionId = agentContext.sessionId();
             if (sessionId.startsWith("board-inquiry-session-")) {
                 // Extract email ID from session ID
@@ -50,27 +51,20 @@ public class ChatHandlerLofiAgent extends Agent {
             }
         }
 
-        // Topic lookup by tag
+        // Topic lookup by tag - queries TopicsView for real data
         if (lowerMessage.contains("@assistant") && lowerMessage.contains("elevator")) {
-            // Hardcoded topic lookup - will be replaced with View query later
-            return "Here's the topic you are talking about [42]";
-        }
-
-        if (lowerMessage.contains("@assistant") && lowerMessage.contains("noise")) {
-            // Hardcoded noise topic lookup with different ID
-            return "Here's the topic you are talking about [15]";
-        }
-
-        if (lowerMessage.contains("@assistant") && lowerMessage.contains("maintenance")) {
-            // Query View for maintenance topic - minimal implementation for GREEN
-            String topicId = queryTopicByTag("maintenance");
+            String topicId = queryTopicByTag("elevator");
             return "Here's the topic you are talking about [" + topicId + "]";
         }
 
-        // Board member keyword search (no @assistant prefix)
-        if (lowerMessage.contains("elevator")) {
-            // Minimal implementation: return email content for elevator keyword
-            return "Elevator broken on floor 3 - email-001 - Monday";
+        if (lowerMessage.contains("@assistant") && lowerMessage.contains("noise")) {
+            String topicId = queryTopicByTag("noise");
+            return "Here's the topic you are talking about [" + topicId + "]";
+        }
+
+        if (lowerMessage.contains("@assistant") && lowerMessage.contains("maintenance")) {
+            String topicId = queryTopicByTag("maintenance");
+            return "Here's the topic you are talking about [" + topicId + "]";
         }
 
         // Default response for any unhandled cases

@@ -7,6 +7,7 @@ import akka.javasdk.agent.AgentContext;
 import akka.javasdk.client.ComponentClient;
 import community.application.entity.EmailEntity;
 import community.application.entity.ReminderConfigEntity;
+import community.application.view.TopicsView;
 
 /**
  * AI-powered chat handler for board member messages.
@@ -76,7 +77,9 @@ public class ChatHandlerAIAgent extends Agent {
         return effects()
             .systemMessage(
                 "You are a helpful assistant for building management. " +
-                "Provide brief, professional responses to board member queries. " +
+                "When board members ask about topics (elevator, noise, maintenance, etc.), " +
+                "use the searchTopicsByTag tool to find relevant discussion threads. " +
+                "Provide brief, professional responses. " +
                 "Keep responses concise (max 2 sentences)."
             )
             .userMessage(message)
@@ -90,5 +93,33 @@ public class ChatHandlerAIAgent extends Agent {
     @FunctionTool(description = "Set reminder interval in seconds")
     private String setReminderInterval(int seconds) {
         return "Reminder interval set to " + seconds + " seconds";
+    }
+
+    /**
+     * Function tool for searching topics by tag keyword.
+     * Allows the LLM to find relevant discussion topics based on keywords.
+     *
+     * @param tag Keyword to search for in topic tags (e.g., "elevator", "noise", "maintenance")
+     * @return Formatted string with topic ID and details, or "No topics found" if none match
+     */
+    @FunctionTool(description = "Find topic by keyword. Use for: elevator, noise, maintenance, parking, or any building-related term.")
+    private String searchTopicsByTag(String tag) {
+        // Query TopicsView to get all topics
+        var topicsList = componentClient.forView()
+            .method(TopicsView::getAllTopics)
+            .invoke();
+
+        // Find topic that contains the matching tag
+        var matchingTopic = topicsList.topics().stream()
+            .filter(topic -> topic.tags() != null &&
+                    topic.tags().toLowerCase().contains(tag.toLowerCase()))
+            .findFirst();
+
+        if (matchingTopic.isPresent()) {
+            var topic = matchingTopic.get();
+            return "Here's the topic you are talking about [" + topic.messageId() + "]";
+        }
+
+        return "No topics found matching '" + tag + "'. Try different keywords.";
     }
 }
