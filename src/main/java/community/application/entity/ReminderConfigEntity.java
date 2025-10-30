@@ -2,6 +2,7 @@ package community.application.entity;
 
 import akka.javasdk.annotations.Component;
 import akka.javasdk.keyvalueentity.KeyValueEntity;
+import community.application.action.KeyValueEntityLogger;
 
 /**
  * Stores AI-configurable reminder configuration.
@@ -14,6 +15,9 @@ public class ReminderConfigEntity extends KeyValueEntity<ReminderConfigEntity.Re
     public record ReminderConfig(int intervalSeconds) {}
 
     public Effect<ReminderConfig> setInterval(int seconds) {
+        String entityId = commandContext().entityId();
+        KeyValueEntityLogger.logStateChange("reminder-config", entityId, "setInterval");
+        
         ReminderConfig newConfig = new ReminderConfig(seconds);
         return effects().updateState(newConfig).thenReply(newConfig);
     }

@@ -21,6 +21,8 @@ public class ReminderAction extends TimedAction {
     }
 
     public Effect sendReminderForActiveInquiry() {
+        TimedActionLogger.logExecution("reminder-action", "sendReminderForActiveInquiry");
+        
         // Get the active inquiry email ID
         String emailId = componentClient.forKeyValueEntity("active-inquiry")
             .method(ActiveInquiryEntity::getActiveInquiryEmailId)

@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 
 import community.domain.port.EmailInboxService;
 import community.domain.model.Email;
+import community.infrastructure.gmail.ExternalServiceLogger;
 
 /**
  * Mock implementation of EmailInboxService for testing.
@@ -62,6 +63,9 @@ public class MockEmailInboxService implements EmailInboxService {
     }
 
     public List<Email> fetchEmailsSince(Instant since) {
+        // Log external service call
+        ExternalServiceLogger.logServiceCall("gmail", "fetchEmailsSince", "success");
+        
         // Cache emails by cursor: same cursor returns same emails (for skip tests),
         // different cursor generates unique emails (for test isolation)
         List<Email> allEmails = emailCache.computeIfAbsent(since, cursor -> {

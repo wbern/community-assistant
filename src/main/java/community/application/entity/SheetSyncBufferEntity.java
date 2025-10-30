@@ -4,6 +4,7 @@ import akka.javasdk.annotations.Component;
 import akka.javasdk.keyvalueentity.KeyValueEntity;
 import community.domain.model.SheetRow;
 import community.domain.model.SheetSyncBufferState;
+import community.application.action.KeyValueEntityLogger;
 
 import java.util.List;
 
@@ -25,6 +26,9 @@ public class SheetSyncBufferEntity extends KeyValueEntity<SheetSyncBufferState> 
      * Add a row to the buffer.
      */
     public Effect<String> addRow(SheetRow row) {
+        String entityId = commandContext().entityId();
+        KeyValueEntityLogger.logStateChange("sheet-sync-buffer", entityId, "addRow");
+        
         SheetSyncBufferState newState = currentState().addRow(row);
         return effects()
             .updateState(newState)
@@ -36,7 +40,11 @@ public class SheetSyncBufferEntity extends KeyValueEntity<SheetSyncBufferState> 
      * Clears the buffer after returning the rows.
      */
     public Effect<List<SheetRow>> flushBuffer() {
+        String entityId = commandContext().entityId();
         List<SheetRow> rows = currentState().rows();
+        KeyValueEntityLogger.logStateChange("sheet-sync-buffer", entityId, "flushBuffer", 
+                                           "Flushed " + rows.size() + " rows");
+        
         return effects()
             .updateState(SheetSyncBufferState.empty())
             .thenReply(rows);

@@ -2,6 +2,7 @@ package community.application.entity;
 
 import akka.javasdk.annotations.Component;
 import akka.javasdk.keyvalueentity.KeyValueEntity;
+import community.application.action.KeyValueEntityLogger;
 
 /**
  * Tracks the single active inquiry that board members should address.
@@ -14,6 +15,9 @@ public class ActiveInquiryEntity extends KeyValueEntity<ActiveInquiryEntity.Acti
     public record ActiveInquiry(String emailId) {}
 
     public Effect<String> setActiveInquiry(String emailId) {
+        String entityId = commandContext().entityId();
+        KeyValueEntityLogger.logStateChange("active-inquiry", entityId, "setActiveInquiry");
+        
         ActiveInquiry inquiry = new ActiveInquiry(emailId);
         return effects().updateState(inquiry).thenReply(emailId);
     }

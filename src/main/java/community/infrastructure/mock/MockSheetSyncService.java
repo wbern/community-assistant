@@ -6,6 +6,7 @@ import java.util.List;
 
 import community.domain.port.SheetSyncService;
 import community.domain.model.SheetRow;
+import community.infrastructure.gmail.ExternalServiceLogger;
 
 /**
  * Mock implementation of SheetSyncService for testing.
@@ -21,6 +22,9 @@ public class MockSheetSyncService implements SheetSyncService {
 
     @Override
     public void upsertRow(String messageId, SheetRow row) {
+        // Log external service call
+        ExternalServiceLogger.logServiceCall("sheets", "upsertRow", "success");
+        
         // Smart merge: if row already exists, merge fields
         // Semantics: null or empty = "keep existing", non-empty = "update to new"
         SheetRow existing = rows.get(messageId);

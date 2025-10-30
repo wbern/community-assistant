@@ -44,6 +44,8 @@ public class SheetSyncFlushAction extends TimedAction {
      * Called periodically by the timer. Reschedules itself for the next flush.
      */
     public Effect flushToSheets() {
+        TimedActionLogger.logExecution("sheet-sync-flush-action", "flushToSheets");
+        
         // Get and flush buffer from KVE
         List<SheetRow> rows = componentClient
             .forKeyValueEntity(BUFFER_ENTITY_ID)
@@ -53,6 +55,8 @@ public class SheetSyncFlushAction extends TimedAction {
         // If buffer has rows, batch upsert to Google Sheets
         if (!rows.isEmpty()) {
             sheetService.batchUpsertRows(rows);
+            TimedActionLogger.logExecution("sheet-sync-flush-action", "flushToSheets", 
+                                          "Flushed " + rows.size() + " rows to Google Sheets");
         }
 
         // Reschedule the next flush
@@ -66,6 +70,8 @@ public class SheetSyncFlushAction extends TimedAction {
      * Can be called manually to bootstrap the timer or for testing.
      */
     public Effect scheduleNextFlush() {
+        TimedActionLogger.logExecution("sheet-sync-flush-action", "scheduleNextFlush");
+        
         timerScheduler.createSingleTimer(
             TIMER_NAME,
             FLUSH_INTERVAL,
