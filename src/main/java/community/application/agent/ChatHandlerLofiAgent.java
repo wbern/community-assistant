@@ -8,6 +8,8 @@ import community.application.entity.EmailEntity;
 import community.application.view.TopicsView;
 import community.application.view.InquiriesView;
 
+import static community.application.agent.ChatConstants.ASSISTANT_MENTION;
+
 /**
  * Lofi chat handler for board member messages using pattern matching.
  * Recognizes keywords and responds with pre-defined templates.
@@ -36,7 +38,7 @@ public class ChatHandlerLofiAgent extends Agent {
         // Board member responding to inquiry with @assistant mention
         // Session ID pattern: board-inquiry-session-{emailId}
         // Only treat as inquiry reply if message does NOT end with '?'
-        if (lowerMessage.contains("@assistant") && !message.trim().endsWith("?")) {
+        if (lowerMessage.contains(ASSISTANT_MENTION) && !message.trim().endsWith("?")) {
             String sessionId = agentContext.sessionId();
             if (sessionId.startsWith("board-inquiry-session-")) {
                 // Extract email ID from session ID
@@ -52,17 +54,17 @@ public class ChatHandlerLofiAgent extends Agent {
         }
 
         // Topic lookup by tag - queries TopicsView for real data
-        if (lowerMessage.contains("@assistant") && lowerMessage.contains("elevator")) {
+        if (lowerMessage.contains(ASSISTANT_MENTION) && lowerMessage.contains("elevator")) {
             String topicId = queryTopicByTag("elevator");
             return "Here's the topic you are talking about [" + topicId + "]";
         }
 
-        if (lowerMessage.contains("@assistant") && lowerMessage.contains("noise")) {
+        if (lowerMessage.contains(ASSISTANT_MENTION) && lowerMessage.contains("noise")) {
             String topicId = queryTopicByTag("noise");
             return "Here's the topic you are talking about [" + topicId + "]";
         }
 
-        if (lowerMessage.contains("@assistant") && lowerMessage.contains("maintenance")) {
+        if (lowerMessage.contains(ASSISTANT_MENTION) && lowerMessage.contains("maintenance")) {
             String topicId = queryTopicByTag("maintenance");
             return "Here's the topic you are talking about [" + topicId + "]";
         }

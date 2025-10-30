@@ -7,6 +7,7 @@ import community.domain.model.EmailTags;
 import community.application.entity.EmailEntity;
 import community.application.entity.ActiveInquiryEntity;
 import community.application.entity.OutboundChatMessageEntity;
+import community.application.entity.ReminderConfigEntity;
 import community.application.view.InquiriesView;
 import community.application.action.ReminderAction;
 import org.awaitility.Awaitility;
@@ -374,6 +375,54 @@ public abstract class ChatHandlerAgentTestBase extends TestKitSupport {
         assertFalse(response.contains("Noted. The inquiry has been marked as addressed.") &&
                     !response.contains("elevator"),
             "Should NOT mark inquiry as addressed when question ends with ?. Got: " + response);
+    }
+
+    @Test
+    public void red_shouldScheduleReminderTimerWhenInquiryCreated() {
+        // RED: When an email arrives and creates an active inquiry,
+        // it should schedule a reminder timer that fires after the configured interval
+
+        // Arrange: Set reminder interval to 5 seconds for testing
+        componentClient.forKeyValueEntity("reminder-config")
+            .method(ReminderConfigEntity::setInterval)
+            .invoke(5);
+
+        String emailId = "email-008";
+        Email urgentEmail = Email.create(
+            emailId,
+            "resident@building.com",
+            "Urgent plumbing issue",
+            "Water leak in my apartment, please help!"
+        );
+
+        // Act: Publish email to trigger inquiry creation and timer scheduling
+        publishEmailToView(urgentEmail, emailId);
+
+        // Assert: Verify active inquiry was set
+        Awaitility.await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            String activeInquiryEmailId = componentClient.forKeyValueEntity("active-inquiry")
+                .method(ActiveInquiryEntity::getActiveInquiryEmailId)
+                .invoke();
+            assertEquals(emailId, activeInquiryEmailId,
+                "Should set email as active inquiry");
+        });
+
+        // Assert: Verify that reminder message is sent after timer fires (proof timer was scheduled)
+        String expectedMessageId = "reminder-" + emailId;
+        Awaitility.await()
+            .pollDelay(6, TimeUnit.SECONDS)  // Wait for timer to fire (5s interval + 1s buffer)
+            .atMost(20, TimeUnit.SECONDS)
+            .untilAsserted(() -> {
+                var chatMessage = componentClient.forEventSourcedEntity(expectedMessageId)
+                    .method(OutboundChatMessageEntity::getMessage)
+                    .invoke();
+
+                assertNotNull(chatMessage,
+                    "Timer should have fired and created reminder message");
+                assertTrue(chatMessage.text().toLowerCase().contains("reminder") ||
+                           chatMessage.text().toLowerCase().contains("following up"),
+                    "Message should be a reminder. Got: " + chatMessage.text());
+            });
     }
 
     @Test

@@ -4,21 +4,28 @@ import akka.javasdk.annotations.Component;
 import akka.javasdk.annotations.Consume;
 import akka.javasdk.client.ComponentClient;
 import akka.javasdk.consumer.Consumer;
+import akka.javasdk.timer.TimerScheduler;
 import community.application.entity.EmailEntity;
 import community.application.entity.ActiveInquiryEntity;
+import community.application.entity.ReminderConfigEntity;
+
+import java.time.Duration;
 
 /**
- * Sets the active inquiry when an email is received.
- * GREEN phase: Minimal implementation to make test pass.
+ * Sets the active inquiry when an email is received and schedules reminder timer.
  */
 @Component(id = "active-inquiry-consumer")
 @Consume.FromEventSourcedEntity(EmailEntity.class)
 public class ActiveInquiryConsumer extends Consumer {
 
-    private final ComponentClient componentClient;
+    private static final String REMINDER_TIMER_PREFIX = "reminder-";
 
-    public ActiveInquiryConsumer(ComponentClient componentClient) {
+    private final ComponentClient componentClient;
+    private final TimerScheduler timerScheduler;
+
+    public ActiveInquiryConsumer(ComponentClient componentClient, TimerScheduler timerScheduler) {
         this.componentClient = componentClient;
+        this.timerScheduler = timerScheduler;
     }
 
     public Effect onEvent(EmailEntity.Event event) {
@@ -30,6 +37,20 @@ public class ActiveInquiryConsumer extends Consumer {
                 componentClient.forKeyValueEntity("active-inquiry")
                     .method(ActiveInquiryEntity::setActiveInquiry)
                     .invoke(emailId);
+
+                // Get reminder interval from config
+                int intervalSeconds = componentClient.forKeyValueEntity("reminder-config")
+                    .method(ReminderConfigEntity::getInterval)
+                    .invoke();
+
+                // Schedule reminder timer to fire after the configured interval
+                timerScheduler.createSingleTimer(
+                    REMINDER_TIMER_PREFIX + emailId,
+                    Duration.ofSeconds(intervalSeconds),
+                    componentClient.forTimedAction()
+                        .method(ReminderAction::sendReminderForActiveInquiry)
+                        .deferred()
+                );
 
                 yield effects().done();
             }

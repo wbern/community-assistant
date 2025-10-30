@@ -23,6 +23,11 @@ public class OutboundChatMessageEntity extends EventSourcedEntity<OutboundChatMe
     public record MessageSent(ChatMessage message) implements Event {}
 
     @Override
+    public State emptyState() {
+        return new State(null);
+    }
+
+    @Override
     public State applyEvent(Event event) {
         return switch(event) {
             case MessageSent sent -> new State(sent.message());
