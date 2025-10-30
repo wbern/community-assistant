@@ -21,6 +21,9 @@ A community assistant that can receive incoming emails, intelligently reply, del
 - ✅ **Rate limiting protection** - flushes every 10 seconds to avoid quota issues
 - ✅ **Idempotency** - defense-in-depth (entity + workflow levels)
 - ✅ **Batch duplicate handling** - merges duplicates within same batch (TDD fix)
+- ✅ **Active inquiry tracking** (ActiveInquiryEntity) - tracks current email requiring attention
+- ✅ **Automated reminder system** (ReminderAction + ActiveInquiryConsumer) - configurable timer-based reminders
+- ✅ **Views for inquiry tracking** (InquiriesView, TopicsView) - optimized queries for board visibility
 
 #### Google Sheets Future Improvements
 - [ ] **Retry logic with backoff timer** - Add exponential backoff for API rate limit handling
@@ -36,48 +39,84 @@ A community assistant that can receive incoming emails, intelligently reply, del
 ### Infrastructure
 - ✅ **Domain-driven design** - clean separation (domain/, application/, api/)
 - ✅ **Akka SDK 3.4+ best practices** - proper annotations, patterns
-- ✅ **Comprehensive tests** - unit, integration, end-to-end
-- ✅ **TDD workflow** - RED-GREEN-REFACTOR discipline
+- ✅ **Comprehensive tests** - unit, integration, end-to-end with 80% coverage threshold
+- ✅ **TDD workflow** - RED-GREEN-REFACTOR discipline with JaCoCo enforcement
+- ✅ **Chat interface foundation** - ChatHandlerLofiAgent with pattern-matching responses
+- ✅ **AI agent testing infrastructure** - TestModelProvider patterns for reliable agent testing
+- ✅ **Timer-based orchestration** - Proper Akka SDK timer patterns with configurable intervals
+- ✅ **Shared constants extraction** - ChatConstants for maintainable magic string elimination
+
+---
+
+## Recent Accomplishments (2025-10-30)
+
+### Chat Foundation & Inquiry Management
+- ✅ **ChatHandlerLofiAgent** - Pattern-matching chat handler for @assistant mentions
+- ✅ **Inquiry addressing workflow** - Board members can mark inquiries as addressed with "@assistant" mentions
+- ✅ **Active inquiry tracking** - Single active inquiry management via ActiveInquiryEntity
+- ✅ **Automated reminder system** - Timer-based reminders with configurable intervals (default 24h)
+- ✅ **Email-to-timer flow** - Complete integration from email arrival to timer scheduling
+- ✅ **Topic lookup foundation** - Basic tag-based topic queries (elevator, noise, maintenance)
+- ✅ **Shared constants** - ChatConstants.ASSISTANT_MENTION for maintainable code
+- ✅ **Comprehensive test coverage** - Timer scheduling flow with proper async testing patterns
+
+### Technical Infrastructure  
+- ✅ **Proper Akka SDK timer patterns** - Duration.ofMillis(0) for immediate triggering in tests
+- ✅ **TDD discipline completion** - Full RED-GREEN-REFACTOR cycle for timer functionality
+- ✅ **TimedAction integration** - ReminderAction with proper componentClient usage
+- ✅ **Consumer event handling** - ActiveInquiryConsumer linking email events to timers
+- ✅ **Entity state management** - OutboundChatMessageEntity with proper emptyState()
 
 ---
 
 ## Missing Features (What's Next 📋)
 
-### 1. Chat Interface Integration ❌
+### 1. Chat Interface Integration 🟡
 
-**Current Gap**: No two-way communication interface for board members to interact with the system.
+**Current State**: Basic foundation in place with ChatHandlerLofiAgent implementing pattern-matching responses for @assistant mentions and inquiry addressing.
 
-**What's Needed**: Topic-centric chat interface that enables natural board member communication about community issues.
+**What's Needed**: Enhanced topic-centric chat interface that enables natural board member communication about community issues.
 
 **Architecture**: See [CHAT_INTERFACE_ARCHITECTURE.md](./CHAT_INTERFACE_ARCHITECTURE.md) for complete architectural analysis.
 
 **Key Components**:
+- ✅ `ChatHandlerLofiAgent` - Pattern-matching for @assistant mentions with inquiry addressing
+- ✅ `TopicsView` - Basic topic lookup by tags (elevator, noise, maintenance)
+- ✅ `InquiriesView` - Query interface for inquiry tracking
+- ✅ `OutboundChatMessageEntity` - Stores outbound chat messages for verification
 - [ ] `TopicEntity` (EventSourcedEntity) - Long-lived community issue tracking
 - [ ] `ConversationEntity` (EventSourcedEntity) - Per-inquiry context management  
 - [ ] `TopicClassifierAgent` - AI classification of emails/mentions into topics
 - [ ] `TopicLookupAgent` - Semantic search for "@assistant about that elevator thing"
 - [ ] `InquiryWorkflow` - Multi-step conversation orchestration
-- [ ] `TopicContextView` - Optimized queries for fast topic retrieval
 - [ ] Platform adapters (Discord, Slack, HTTP endpoints)
 
 **Integration Points**:
-- Extends existing `EmailProcessingWorkflow` with topic classification
-- Enhances `GoogleSheetConsumer` with topic context columns
-- Reuses `EmailTaggingAgent` for topic classification input
-- Links `EmailEntity` events to `TopicEntity` creation/updates
+- ✅ Links `EmailEntity` events to inquiry addressing via `ChatHandlerLofiAgent`
+- ✅ Active inquiry tracking through `ActiveInquiryConsumer` and timer scheduling
+- ✅ Reminder system integration with configurable intervals via `ReminderConfigEntity`
+- [ ] Extends existing `EmailProcessingWorkflow` with topic classification
+- [ ] Enhances `GoogleSheetConsumer` with topic context columns
+- [ ] Reuses `EmailTaggingAgent` for topic classification input
+- [ ] Links `EmailEntity` events to `TopicEntity` creation/updates
 
 **TDD Implementation Phases**:
-1. TopicEntity foundation with event sourcing
-2. Topic classification from emails using AI
-3. @mention resolution and topic lookup
-4. Complete inquiry workflow with context gathering
-5. Platform integration (starting with HTTP/webhooks)
+1. ✅ Basic @mention handling and inquiry addressing foundation
+2. ✅ Timer-based reminder system with configurable intervals
+3. [ ] TopicEntity foundation with event sourcing
+4. [ ] Topic classification from emails using AI
+5. [ ] Enhanced @mention resolution and semantic topic lookup
+6. [ ] Complete inquiry workflow with context gathering
+7. [ ] Platform integration (starting with HTTP/webhooks)
 
 **Benefits**:
-- Board members can @mention topics naturally: "@assistant status on Building A maintenance?"
-- Complete audit trail of community issue discussions
-- Leverages existing email processing infrastructure
-- Platform-agnostic design (Discord, Slack, web interface)
+- ✅ Board members can @mention assistant for inquiry addressing: "@assistant I'll handle this"
+- ✅ Automated reminders ensure inquiries don't fall through cracks
+- ✅ Basic topic lookup by tags: "@assistant elevator", "@assistant noise"
+- [ ] Enhanced natural language: "@assistant status on Building A maintenance?"
+- [ ] Complete audit trail of community issue discussions
+- ✅ Leverages existing email processing infrastructure
+- [ ] Platform-agnostic design (Discord, Slack, web interface)
 
 ---
 
@@ -636,12 +675,22 @@ public class EmailMetricsView extends View {
 
 ## Next Immediate Steps
 
-1. **Decide on Phase 1 scope** - validate with stakeholders
-2. **Set up Gmail API credentials** - test environment first
-3. **Build EmailOutboxService interface** - TDD approach
-4. **Implement simple reply draft agent** - minimal viable
-5. **Test end-to-end with real Gmail** - integration test
-6. **Get feedback from board members** - iterate quickly
+### Short-term (Next 1-2 weeks)
+1. **Enhanced chat interface** - Improve ChatHandlerLofiAgent with more sophisticated pattern matching
+2. **AI-powered topic classification** - Upgrade from tag-based to semantic topic lookup  
+3. **Topic entity foundation** - Implement TopicEntity for long-lived issue tracking
+4. **Multi-timer support** - Handle multiple active inquiries simultaneously
+
+### Medium-term (Next month)
+1. **Gmail API integration** - Replace MockEmailInboxService with real Gmail connectivity
+2. **Email sending capabilities** - EmailOutboxService interface and implementation
+3. **Basic reply generation** - EmailReplyAgent for AI-generated draft responses
+4. **Approval workflow foundation** - Human-in-the-loop for reply quality control
+
+### Validation & Feedback
+1. **Board member testing** - Get feedback on current inquiry addressing workflow
+2. **Performance monitoring** - Ensure timer system scales with multiple inquiries
+3. **Chat interface usability** - Validate @assistant mention patterns with users
 
 ---
 

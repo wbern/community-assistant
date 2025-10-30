@@ -13,7 +13,6 @@ import community.infrastructure.gmail.GmailInboxService;
 import community.infrastructure.mock.MockEmailInboxService;
 import community.infrastructure.mock.MockSheetSyncService;
 import community.domain.port.SheetSyncService;
-import realestate.application.EmailClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.github.cdimascio.dotenv.Dotenv;
@@ -99,9 +98,6 @@ public class ServiceConfiguration implements ServiceSetup {
 
       @Override
       public <T> T getDependency(Class<T> aClass) {
-        if (aClass.equals(EmailClient.class)) {
-          return (T) new EmailClient();
-        }
         if (aClass.equals(SheetSyncService.class)) {
           // Return cached instance if available (prevents expensive re-initialization)
           if (sheetSyncServiceInstance != null) {
