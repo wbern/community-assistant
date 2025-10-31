@@ -8,6 +8,7 @@ import akka.javasdk.timer.TimerScheduler;
 //import dev.langchain4j.model.ollama.OllamaChatModel;
 import com.typesafe.config.Config;
 import community.application.action.SheetSyncFlushAction;
+import community.application.action.EmailPollingAction;
 import community.domain.port.EmailInboxService;
 import community.infrastructure.gmail.GmailInboxService;
 import community.infrastructure.mock.MockEmailInboxService;
@@ -24,12 +25,14 @@ public class ServiceConfiguration implements ServiceSetup {
 
   private static final Logger log = LoggerFactory.getLogger(ServiceConfiguration.class);
   private static final String BOOTSTRAP_TIMER_NAME = "bootstrap-sheet-sync-timer";
+  private static final String EMAIL_POLLING_BOOTSTRAP_TIMER_NAME = "bootstrap-email-polling-timer";
 
   // Singleton mock for testing - will be replaced with real service later
   private static final MockSheetSyncService MOCK_SHEET_SERVICE = new MockSheetSyncService();
 
   private final ComponentClient componentClient;
   private final TimerScheduler timerScheduler;
+  private final Config config;
 
   // Instance-based cache for expensive services (not static, allows test isolation)
   private SheetSyncService sheetSyncServiceInstance;
@@ -63,6 +66,7 @@ public class ServiceConfiguration implements ServiceSetup {
 
     this.componentClient = componentClient;
     this.timerScheduler = timerScheduler;
+    this.config = config;
     if (config.getString("akka.javasdk.agent.model-provider").equals("openai")
       && config.getString("akka.javasdk.agent.openai.api-key").isBlank()) {
       throw new IllegalStateException(
@@ -82,6 +86,22 @@ public class ServiceConfiguration implements ServiceSetup {
         .method(SheetSyncFlushAction::scheduleNextFlush)
         .deferred()
     );
+    
+    // Bootstrap the periodic timer for EmailPollingAction only if enabled
+    boolean emailPollingEnabled = config.getBoolean("community.email-polling.enabled");
+    if (emailPollingEnabled) {
+      log.info("Email polling is enabled, starting automatic polling");
+      timerScheduler.createSingleTimer(
+        EMAIL_POLLING_BOOTSTRAP_TIMER_NAME,
+        Duration.ZERO,
+        componentClient
+          .forTimedAction()
+          .method(EmailPollingAction::scheduleNextPoll)
+          .deferred()
+      );
+    } else {
+      log.info("Email polling is disabled in this environment");
+    }
   }
 
   /**

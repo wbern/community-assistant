@@ -26,13 +26,16 @@ Detailed architectural design for multi-agent topic-centric chat system.
 
 ```mermaid
 flowchart LR
-    Gmail[📧 Gmail] --> Workflow[EmailProcessingWorkflow]
+    Gmail[📧 Gmail] -->|Automatic Polling| Workflow[EmailProcessingWorkflow]
+    Timer[⏰ EmailPollingAction] -->|Every 5 min| Workflow
     Workflow --> Entity[EmailEntity]
     Entity --> Views[Views]
     Entity --> Consumer[GoogleSheetConsumer]
     Consumer --> Sheets[📊 Google Sheets]
     Board[👤 Board Member] -->|Natural Language| ChatAI[ChatHandlerAIAgent]
     Board -->|Keywords| Chat[ChatHandlerAgent]
+    Board -->|Manual Trigger| HTTP[EmailEndpoint]
+    HTTP --> Workflow
     ChatAI --> Entity
     Chat --> Views
     Chat --> Entity
@@ -41,6 +44,8 @@ flowchart LR
     style Board fill:#e1f5ff
     style Sheets fill:#e1f5ff
     style ChatAI fill:#fff3e0
+    style Timer fill:#f3e5f5
+    style HTTP fill:#e8f5e8
 ```
 
 ## Component Count
@@ -48,13 +53,42 @@ flowchart LR
 | Type | Count | Examples |
 |------|-------|----------|
 | **EventSourced Entities** | 1 | EmailEntity |
-| **KeyValue Entities** | 2 | SheetSyncBufferEntity, EmailSyncCursorEntity |
+| **KeyValue Entities** | 3 | SheetSyncBufferEntity, EmailSyncCursorEntity, EmailPollingConfigEntity |
 | **Agents** | 3 | ChatHandlerAgent (lofi), ChatHandlerAIAgent (AI), EmailTaggingAgent |
 | **Workflows** | 1 | EmailProcessingWorkflow |
 | **Views** | 2 | InquiriesView, TopicsView |
 | **Consumers** | 1 | GoogleSheetConsumer |
-| **TimedActions** | 1 | SheetSyncFlushAction |
+| **TimedActions** | 3 | SheetSyncFlushAction, EmailPollingAction, ReminderAction |
 | **HTTP Endpoints** | 2 | ChatEndpoint, EmailEndpoint |
+
+## Email Polling System
+
+The system automatically fetches new emails from Gmail every 5 minutes:
+
+```mermaid
+sequenceDiagram
+    participant Timer as EmailPollingAction
+    participant Config as EmailPollingConfigEntity
+    participant Workflow as EmailProcessingWorkflow
+    participant Gmail as GmailInboxService
+
+    Timer->>Config: Get polling interval
+    Config-->>Timer: 300 seconds (5 min)
+    Timer->>Workflow: processInbox()
+    Workflow->>Gmail: fetchUnprocessedEmails()
+    Gmail-->>Workflow: Email list
+    Note over Timer: Reschedules automatically
+```
+
+**Environment Configuration:**
+- **Production**: Automatic polling enabled (5-minute default)
+- **Test Environment**: Polling disabled, manual processing via HTTP endpoint
+- **Configurable**: Interval via `EMAIL_POLLING_INTERVAL` environment variable
+
+**Key Components:**
+- `EmailPollingAction` - Timer that triggers polling
+- `EmailPollingConfigEntity` - Stores configurable interval
+- `ServiceConfiguration` - Bootstrap with environment-based enabling
 
 ## Board Member Chat Interaction
 

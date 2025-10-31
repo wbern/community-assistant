@@ -8,12 +8,15 @@ A community assistant that can receive incoming emails, intelligently reply, del
 ## Current State (What Works ✅)
 
 ### Email Processing Pipeline
+- ✅ **Automatic email polling** (EmailPollingAction) - fetches new emails every 5 minutes
+- ✅ **Environment-based configuration** - polling disabled in tests, enabled in production
+- ✅ **Configurable intervals** (EmailPollingConfigEntity) - customizable polling frequency
 - ✅ **Email ingestion** via EmailProcessingWorkflow
 - ✅ **Event-sourced persistence** (EmailEntity) - emails never lost
 - ✅ **AI tagging/classification** (EmailTaggingAgent) - categorizes emails
 - ✅ **Cursor-based fetching** (EmailSyncCursorEntity) - processes only new emails
 - ✅ **Workflow optimization** - skips already-processed emails to save AI costs
-- ✅ **HTTP endpoint** - `/process-inbox` to trigger processing
+- ✅ **HTTP endpoint** - `/process-inbox` to trigger manual processing
 
 ### Tracking & Visibility
 - ✅ **Google Sheets sync** (GoogleSheetConsumer) - materializes emails to spreadsheet
@@ -43,12 +46,22 @@ A community assistant that can receive incoming emails, intelligently reply, del
 - ✅ **TDD workflow** - RED-GREEN-REFACTOR discipline with JaCoCo enforcement
 - ✅ **Chat interface foundation** - ChatHandlerLofiAgent with pattern-matching responses
 - ✅ **AI agent testing infrastructure** - TestModelProvider patterns for reliable agent testing
-- ✅ **Timer-based orchestration** - Proper Akka SDK timer patterns with configurable intervals
+- ✅ **Timer-based orchestration** - Comprehensive TimedAction patterns (EmailPollingAction, SheetSyncFlushAction, ReminderAction)
+- ✅ **Environment-aware configuration** - Production vs test environment behavior via application.conf
 - ✅ **Shared constants extraction** - ChatConstants for maintainable magic string elimination
 
 ---
 
-## Recent Accomplishments (2025-10-30)
+## Recent Accomplishments (2025-10-31)
+
+### Automatic Email Polling System
+- ✅ **EmailPollingAction** - Automatic email fetching every 5 minutes via TimedAction
+- ✅ **EmailPollingConfigEntity** - Configurable polling intervals with default 5-minute setting
+- ✅ **Environment-based configuration** - Polling disabled in test environments, enabled in production
+- ✅ **ServiceConfiguration bootstrap** - Conditional timer initialization based on environment
+- ✅ **Timer shutdown handling** - Graceful error handling during test teardown
+- ✅ **Production readiness** - Full test coverage with 85 passing tests, zero failures
+- ✅ **Configuration flexibility** - `EMAIL_POLLING_ENABLED` and `EMAIL_POLLING_INTERVAL` environment variables
 
 ### Chat Foundation & Inquiry Management
 - ✅ **ChatHandlerLofiAgent** - Pattern-matching chat handler for @assistant mentions

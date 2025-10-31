@@ -72,14 +72,25 @@ public class SheetSyncFlushAction extends TimedAction {
     public Effect scheduleNextFlush() {
         TimedActionLogger.logExecution("sheet-sync-flush-action", "scheduleNextFlush");
         
-        timerScheduler.createSingleTimer(
-            TIMER_NAME,
-            FLUSH_INTERVAL,
-            componentClient
-                .forTimedAction()
-                .method(SheetSyncFlushAction::flushToSheets)
-                .deferred()
-        );
+        try {
+            timerScheduler.createSingleTimer(
+                TIMER_NAME,
+                FLUSH_INTERVAL,
+                componentClient
+                    .forTimedAction()
+                    .method(SheetSyncFlushAction::flushToSheets)
+                    .deferred()
+            );
+        } catch (RuntimeException e) {
+            // Handle timer scheduler shutdown during test teardown
+            if (e.getCause() instanceof akka.pattern.AskTimeoutException) {
+                TimedActionLogger.logExecution("sheet-sync-flush-action", "scheduleNextFlush", 
+                                              "Timer scheduler terminated - skipping reschedule");
+            } else {
+                // Re-throw unexpected errors
+                throw e;
+            }
+        }
         return effects().done();
     }
 }
