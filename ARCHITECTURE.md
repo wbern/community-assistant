@@ -48,18 +48,18 @@ flowchart LR
     style HTTP fill:#e8f5e8
 ```
 
-## Component Count
+## Component Architecture
 
-| Type | Count | Examples |
-|------|-------|----------|
-| **EventSourced Entities** | 1 | EmailEntity |
-| **KeyValue Entities** | 3 | SheetSyncBufferEntity, EmailSyncCursorEntity, EmailPollingConfigEntity |
-| **Agents** | 3 | ChatHandlerAgent (lofi), ChatHandlerAIAgent (AI), EmailTaggingAgent |
-| **Workflows** | 1 | EmailProcessingWorkflow |
-| **Views** | 2 | InquiriesView, TopicsView |
-| **Consumers** | 1 | GoogleSheetConsumer |
-| **TimedActions** | 3 | SheetSyncFlushAction, EmailPollingAction, ReminderAction |
-| **HTTP Endpoints** | 2 | ChatEndpoint, EmailEndpoint |
+| Type | Purpose | Pattern |
+|------|---------|---------|
+| **EventSourced Entities** | Core business state | Commands → Events → State |
+| **KeyValue Entities** | Simple configuration | Direct state updates |
+| **Agents** | AI-powered decisions | Prompt engineering with structured output |
+| **Workflows** | Multi-step orchestration | Step-based with timeouts and recovery |
+| **Views** | Query projections | Event-driven materialized views |
+| **Consumers** | Event processing | React to entity events |
+| **TimedActions** | Scheduled tasks | Periodic execution with bootstrapping |
+| **HTTP Endpoints** | External API | RESTful with ACL protection |
 
 ## Email Polling System
 
@@ -80,86 +80,55 @@ sequenceDiagram
     Note over Timer: Reschedules automatically
 ```
 
-**Environment Configuration:**
-- **Production**: Automatic polling enabled (5-minute default)
-- **Test Environment**: Polling disabled, manual processing via HTTP endpoint
-- **Configurable**: Interval via `EMAIL_POLLING_INTERVAL` environment variable
+**Architecture Patterns:**
+- **Timer-based Orchestration**: EmailPollingAction coordinates polling schedule
+- **Environment-aware Bootstrap**: ServiceConfiguration enables/disables based on config
+- **Configurable Intervals**: EmailPollingConfigEntity allows runtime adjustment
 
-**Key Components:**
-- `EmailPollingAction` - Timer that triggers polling
-- `EmailPollingConfigEntity` - Stores configurable interval
-- `ServiceConfiguration` - Bootstrap with environment-based enabling
+## Service Selection Architecture
 
-## Gmail Integration Status
-
-**✅ FULLY IMPLEMENTED** - Real Gmail integration is production-ready with comprehensive testing.
-
-### Service Selection Strategy
-The system automatically selects the appropriate email service based on available credentials:
+The system uses dependency injection to select between real and mock implementations based on environment:
 
 ```mermaid
 flowchart TD
-    Start[System Startup] --> Check{Gmail Credentials<br/>Available?}
-    Check -->|Yes| Gmail[GmailInboxService<br/>📧 Real Gmail API]
-    Check -->|No| Mock[MockEmailInboxService<br/>🧪 Test Double]
-    Gmail --> Features[✅ OAuth Authentication<br/>✅ Domain-wide Delegation<br/>✅ Automatic Polling<br/>✅ Production Observability]
-    Mock --> TestFeatures[✅ Test Isolation<br/>✅ Predictable Behavior<br/>✅ No External Dependencies]
+    Start[System Startup] --> Check{Credentials<br/>Available?}
+    Check -->|Yes| Real[Real Service<br/>Implementation]
+    Check -->|No| Mock[Mock Service<br/>Implementation]
+    Real --> Port[Domain Port<br/>Interface]
+    Mock --> Port
 ```
 
-### Implementation Details
-- **Real Gmail**: Uses Google Service Account with domain-wide delegation
-- **Authentication**: OAuth 2.0 with service account credentials  
-- **API Integration**: Gmail API v1 with proper error handling
-- **Observability**: External service call logging for monitoring
-- **Testing**: Multi-layer integration tests verify complete polling flow
+**Design Principles:**
+- **Port-Adapter Pattern**: Domain defines interfaces, infrastructure provides implementations
+- **Environment-based DI**: ServiceConfiguration selects implementation at runtime
+- **Test Isolation**: Mock services for deterministic testing
+- **Production Readiness**: Real services when credentials are configured
 
-### Testing Coverage
-| Layer | Description | Status |
-|-------|-------------|---------|
-| **Layer 1** | Service selection (Gmail vs Mock) | ✅ Verified |
-| **Layer 2** | Workflow-level Gmail integration | ✅ Verified |
-| **Layer 3** | Complete timer-based polling flow | ✅ Verified |
+## Chat Interface Architecture
 
-### Configuration Requirements
-```bash
-# Production Gmail Integration
-GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
-GMAIL_USER_EMAIL=styrelsen@yourdomain.com
-EMAIL_POLLING_ENABLED=true
-
-# Test Environment (uses Mock)
-# Omit credentials to use MockEmailInboxService
-EMAIL_POLLING_ENABLED=false
-```
-
-## Board Member Chat Interaction
-
-Two approaches for handling board member responses to inquiries:
+Board members interact with the system through @mentions to address inquiries:
 
 ```mermaid
 graph TD
-    BoardMsg["👤 Board Member Message<br/>'I've contacted the plumber.<br/>They'll come tomorrow at 9 AM.'"]
+    BoardMsg["👤 Board Member Message<br/>'@assistant I've contacted the plumber.<br/>They'll come tomorrow at 9 AM.'"]
 
-    BoardMsg -->|Option 1| LoFi[ChatHandlerAgent<br/>⚡ Pattern Matching]
-    BoardMsg -->|Option 2| AI[ChatHandlerAIAgent<br/>🤖 Natural Language]
+    BoardMsg --> Handler[ChatHandler Agent]
+    Handler --> Analysis[Intent Analysis]
+    Analysis --> Action[Mark Inquiry as Addressed]
+    Action --> Entity[EmailEntity]
+    Entity --> Response[Confirmation Response]
 
-    LoFi -->|"Looks for '@assistant' keyword"| LoFiAction[Mark as Addressed]
-    AI -->|"AI understands intent"| AIAction[Mark as Addressed]
-
-    LoFiAction --> Entity[EmailEntity]
-    AIAction --> Entity
-
-    Entity --> LoFiReply["Fixed: 'Noted. The inquiry<br/>has been marked as addressed.'"]
-    Entity --> AIReply["Natural: 'Thank you for your<br/>prompt action in addressing<br/>the resident's inquiry.'"]
-
-    style LoFi fill:#e8f5e9
-    style AI fill:#fff3e0
     style BoardMsg fill:#e1f5ff
+    style Handler fill:#fff3e0
 ```
 
-**When to use:**
-- **ChatHandlerAgent (LoFi)**: Fast, deterministic, keyword-based (current default)
-- **ChatHandlerAIAgent (AI)**: Natural language understanding, flexible responses (tested with SmolLM2)
+**Architecture Patterns:**
+- **Agent-based Processing**: Pluggable chat handlers for different processing needs
+- **Intent Recognition**: Parse board member messages to understand desired actions
+- **Entity State Updates**: Chat interactions update core business entities
+- **Feedback Loop**: System confirms actions back to board members
+
+*Note: Multiple agent implementations available for different testing and production needs*
 
 ## Key Files
 

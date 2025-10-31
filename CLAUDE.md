@@ -1,5 +1,14 @@
 # Claude Instructions - TDD + Akka SDK
 
+## Akka SDK Context & Support
+
+**IMPORTANT**: Use the `@akka-context/` folder for comprehensive Akka SDK guidance and examples.
+
+- **Primary Resource**: Check `@akka-context/index.html.md` for curated Akka SDK patterns, examples, and best practices
+- **When to Use**: First consult akka-context before implementing new Akka SDK components or patterns
+- **Coverage**: Component types, testing patterns, common mistakes, architectural decisions
+- **Supplement**: Use alongside official docs at https://doc.akka.io for complete reference
+
 ## TDD Workflow (MANDATORY)
 
 **Red-Green-Refactor Cycle:**
