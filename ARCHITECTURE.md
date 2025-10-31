@@ -90,6 +90,48 @@ sequenceDiagram
 - `EmailPollingConfigEntity` - Stores configurable interval
 - `ServiceConfiguration` - Bootstrap with environment-based enabling
 
+## Gmail Integration Status
+
+**✅ FULLY IMPLEMENTED** - Real Gmail integration is production-ready with comprehensive testing.
+
+### Service Selection Strategy
+The system automatically selects the appropriate email service based on available credentials:
+
+```mermaid
+flowchart TD
+    Start[System Startup] --> Check{Gmail Credentials<br/>Available?}
+    Check -->|Yes| Gmail[GmailInboxService<br/>📧 Real Gmail API]
+    Check -->|No| Mock[MockEmailInboxService<br/>🧪 Test Double]
+    Gmail --> Features[✅ OAuth Authentication<br/>✅ Domain-wide Delegation<br/>✅ Automatic Polling<br/>✅ Production Observability]
+    Mock --> TestFeatures[✅ Test Isolation<br/>✅ Predictable Behavior<br/>✅ No External Dependencies]
+```
+
+### Implementation Details
+- **Real Gmail**: Uses Google Service Account with domain-wide delegation
+- **Authentication**: OAuth 2.0 with service account credentials  
+- **API Integration**: Gmail API v1 with proper error handling
+- **Observability**: External service call logging for monitoring
+- **Testing**: Multi-layer integration tests verify complete polling flow
+
+### Testing Coverage
+| Layer | Description | Status |
+|-------|-------------|---------|
+| **Layer 1** | Service selection (Gmail vs Mock) | ✅ Verified |
+| **Layer 2** | Workflow-level Gmail integration | ✅ Verified |
+| **Layer 3** | Complete timer-based polling flow | ✅ Verified |
+
+### Configuration Requirements
+```bash
+# Production Gmail Integration
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+GMAIL_USER_EMAIL=styrelsen@yourdomain.com
+EMAIL_POLLING_ENABLED=true
+
+# Test Environment (uses Mock)
+# Omit credentials to use MockEmailInboxService
+EMAIL_POLLING_ENABLED=false
+```
+
 ## Board Member Chat Interaction
 
 Two approaches for handling board member responses to inquiries:

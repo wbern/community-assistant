@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 
 import community.domain.port.EmailInboxService;
 import community.domain.model.Email;
+import community.infrastructure.gmail.ExternalServiceLogger;
 
 /**
  * Gmail implementation of EmailInboxService.
@@ -109,6 +110,7 @@ public class GmailInboxService implements EmailInboxService {
                 .execute();
 
             if (response.getMessages() == null || response.getMessages().isEmpty()) {
+                ExternalServiceLogger.logServiceCall("gmail", "fetchEmailsSince", "success");
                 return List.of();
             }
 
@@ -126,9 +128,11 @@ public class GmailInboxService implements EmailInboxService {
                 .sorted(Comparator.comparing(Email::getReceivedAt)) // Chronological order
                 .collect(Collectors.toList());
 
+            ExternalServiceLogger.logServiceCall("gmail", "fetchEmailsSince", "success");
             return emails;
 
         } catch (IOException e) {
+            ExternalServiceLogger.logServiceCall("gmail", "fetchEmailsSince", "error");
             throw new RuntimeException("Failed to fetch emails from Gmail", e);
         }
     }
