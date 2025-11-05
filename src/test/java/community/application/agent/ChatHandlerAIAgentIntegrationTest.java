@@ -1,8 +1,6 @@
 package community.application.agent;
 
 import akka.javasdk.testkit.TestKit;
-import akka.javasdk.testkit.TestKitSupport;
-import community.application.entity.EmailEntity;
 import community.application.view.InquiriesView;
 import community.domain.model.Email;
 import org.awaitility.Awaitility;
@@ -37,30 +35,23 @@ import static org.junit.jupiter.api.Assertions.*;
  * ollama pull smollm2:135m-instruct-q4_0
  * </pre>
  */
-public class ChatHandlerAIAgentIntegrationTest extends TestKitSupport {
+public class ChatHandlerAIAgentIntegrationTest extends ChatHandlerAgentTestBase {
 
     @Override
     protected TestKit.Settings testKitSettings() {
-        return TestKit.Settings.DEFAULT
-            .withEventSourcedEntityIncomingMessages(EmailEntity.class)
+        return super.testKitSettings()
             .withAdditionalConfig("akka.javasdk.agent.openai.base-url = \"http://localhost:11434/v1\"")
             .withAdditionalConfig("akka.javasdk.agent.openai.model = \"smollm2:135m-instruct-q4_0\"");
     }
 
-    /**
-     * Helper: Hydrate entity by calling receiveEmail command AND publish event to views.
-     * Use this when tests need both entity commands to work AND views to be populated.
-     */
-    private void hydrateEntityAndPublishToView(Email email, String emailId) {
-        // First hydrate entity for command calls
-        componentClient.forEventSourcedEntity(emailId)
-            .method(EmailEntity::receiveEmail)
-            .invoke(email);
-
-        // Then publish event to populate views
-        testKit.getEventSourcedEntityIncomingMessages(EmailEntity.class)
-            .publish(new EmailEntity.Event.EmailReceived(email), emailId);
+    @Override
+    protected String invokeAgentAndGetResponse(String sessionId, String message) {
+        return componentClient.forAgent()
+            .inSession(sessionId)
+            .method(ChatHandlerAIAgent::handleMessage)
+            .invoke(message);
     }
+
 
     @Test
     public void shouldUnderstandBoardMemberAddressedInquiryWithAI() {
@@ -165,4 +156,5 @@ public class ChatHandlerAIAgentIntegrationTest extends TestKitSupport {
 
         System.out.println("[SmolLM2] AI Response (casual): " + response);
     }
+
 }

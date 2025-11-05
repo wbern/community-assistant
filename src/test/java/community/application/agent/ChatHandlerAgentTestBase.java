@@ -7,6 +7,7 @@ import community.domain.model.EmailTags;
 import community.application.entity.EmailEntity;
 import community.application.entity.ActiveInquiryEntity;
 import community.application.entity.OutboundChatMessageEntity;
+import community.application.entity.OutboundEmailEntity;
 import community.application.entity.ReminderConfigEntity;
 import community.application.view.InquiriesView;
 import community.application.action.ReminderAction;
@@ -18,6 +19,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static community.application.agent.ChatConstants.*;
 
 /**
  * Abstract base class for ChatHandler agent tests.
@@ -237,7 +239,7 @@ public abstract class ChatHandlerAgentTestBase extends TestKitSupport {
                 "Inquiry should reference the email or its details");
 
             // Assert: Should have set this email as the active inquiry
-            String activeInquiryEmailId = componentClient.forKeyValueEntity("active-inquiry")
+            String activeInquiryEmailId = componentClient.forKeyValueEntity(ACTIVE_INQUIRY_ENTITY_ID)
                 .method(ActiveInquiryEntity::getActiveInquiryEmailId)
                 .invoke();
             assertEquals("email-003", activeInquiryEmailId,
@@ -311,7 +313,7 @@ public abstract class ChatHandlerAgentTestBase extends TestKitSupport {
 
         // Act: Board member responds to inquiry with @assistant mention
         // The chat session should be associated with the inquiry/email
-        String chatSessionId = "board-inquiry-session-" + emailId;
+        String chatSessionId = BOARD_INQUIRY_SESSION_PREFIX + emailId;
         String boardMemberReply = "@assistant I've contacted the plumber. They will come tomorrow at 9 AM.";
 
         String response = invokeAgentAndGetResponse(chatSessionId, boardMemberReply);
@@ -361,7 +363,7 @@ public abstract class ChatHandlerAgentTestBase extends TestKitSupport {
         });
 
         // Act: Board member asks a NEW question (ends with ?) despite active inquiry
-        String chatSessionId = "board-inquiry-session-" + emailId;
+        String chatSessionId = BOARD_INQUIRY_SESSION_PREFIX + emailId;
         String boardMemberQuestion = "@assistant elevator?";
 
         String response = invokeAgentAndGetResponse(chatSessionId, boardMemberQuestion);
@@ -400,7 +402,7 @@ public abstract class ChatHandlerAgentTestBase extends TestKitSupport {
 
         // Assert: Verify active inquiry was set
         Awaitility.await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
-            String activeInquiryEmailId = componentClient.forKeyValueEntity("active-inquiry")
+            String activeInquiryEmailId = componentClient.forKeyValueEntity(ACTIVE_INQUIRY_ENTITY_ID)
                 .method(ActiveInquiryEntity::getActiveInquiryEmailId)
                 .invoke();
             assertEquals(emailId, activeInquiryEmailId,
@@ -433,7 +435,7 @@ public abstract class ChatHandlerAgentTestBase extends TestKitSupport {
         // Arrange: Set up active inquiry directly in KVE
         String emailId = "email-007";
 
-        componentClient.forKeyValueEntity("active-inquiry")
+        componentClient.forKeyValueEntity(ACTIVE_INQUIRY_ENTITY_ID)
             .method(ActiveInquiryEntity::setActiveInquiry)
             .invoke(emailId);
 
@@ -460,6 +462,215 @@ public abstract class ChatHandlerAgentTestBase extends TestKitSupport {
                        messageText.toLowerCase().contains("following up") ||
                        messageText.contains(emailId),
                 "Reminder should reference the active inquiry. Got: " + messageText);
+        });
+    }
+
+    @Test
+    public void red_shouldSendEmailWhenBoardMemberRequestsEmailToUser() {
+        // RED: Integration test - when board member sends text command asking to send email to user,
+        // agent should recognize this and use email sending tool to create OutboundEmailEntity
+        
+        // Arrange: Board member wants to send email reply to a resident
+        String boardMemberMessage = "@assistant send email to resident@community.com about elevator repair scheduled tomorrow at 10am";
+        String sessionId = "board-session-123";
+        
+        // Act: Send message to agent
+        String response = invokeAgentAndGetResponse(sessionId, boardMemberMessage);
+        
+        // Assert: Agent should recognize email sending intent and create OutboundEmailEntity
+        assertNotNull(response, "Agent should respond to email sending request");
+        assertFalse(response.isBlank(), "Response should have content");
+        
+        // Verify OutboundEmailEntity was created (agent should call the email sending tool)
+        Awaitility.await().atMost(30, TimeUnit.SECONDS).untilAsserted(() -> {
+            // The agent should have used email sending tool which creates OutboundEmailEntity
+            // We expect the entity to be created with some ID (agent will determine appropriate ID)
+            var outboundEmail = componentClient.forEventSourcedEntity(OUTBOUND_EMAIL_ENTITY_ID)
+                .method(OutboundEmailEntity::getDraft)
+                .invoke();
+                
+            assertNotNull(outboundEmail, "Agent should have created outbound email draft");
+            assertTrue(outboundEmail.recipientEmail().contains("resident@community.com"),
+                "Should send to requested recipient");
+            assertTrue(outboundEmail.subject().toLowerCase().contains("elevator") ||
+                       outboundEmail.body().toLowerCase().contains("elevator"),
+                "Email should contain elevator repair information");
+        });
+    }
+
+    @Test
+    public void red_shouldUseOriginalThreadIdWhenReplyingToExistingEmail() {
+        // RED: When agent is asked to reply to a user from an existing EmailEntity,
+        // it should use the original email's thread ID to maintain Gmail conversation threading
+        
+        // Arrange: Create an existing email that was received (this represents an inquiry)
+        String originalEmailId = "email-thread-123";
+        Email originalEmail = Email.create(
+            originalEmailId,
+            "resident@community.com", 
+            "Broken elevator in building A",
+            "The elevator has been broken for 2 days. When will it be fixed?"
+        );
+        
+        // Hydrate entity so agent can access the original email data
+        hydrateEntityAndPublishToView(originalEmail, originalEmailId);
+        
+        // Wait for email to be available
+        Awaitility.await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            var storedEmail = componentClient.forEventSourcedEntity(originalEmailId)
+                .method(EmailEntity::getEmail)
+                .invoke();
+            assertNotNull(storedEmail, "Original email should be stored");
+        });
+        
+        // Act: Board member asks agent to reply to the resident about this specific email
+        String boardMemberMessage = "@assistant reply to resident@community.com about email " + originalEmailId + " saying elevator will be fixed tomorrow";
+        String sessionId = "board-session-reply-test";
+        
+        String response = invokeAgentAndGetResponse(sessionId, boardMemberMessage);
+        
+        // Assert: Agent should create OutboundEmailEntity with original thread reference
+        assertNotNull(response, "Agent should respond to reply request");
+        assertFalse(response.isBlank(), "Response should have content");
+        
+        // Verify OutboundEmailEntity was created with thread reference
+        Awaitility.await().atMost(30, TimeUnit.SECONDS).untilAsserted(() -> {
+            var outboundEmail = componentClient.forEventSourcedEntity(OUTBOUND_EMAIL_ENTITY_ID)
+                .method(OutboundEmailEntity::getDraft)
+                .invoke();
+                
+            assertNotNull(outboundEmail, "Agent should have created outbound email draft");
+            assertEquals(originalEmailId, outboundEmail.originalCaseId(),
+                "Outbound email should reference the original email thread ID");
+            assertTrue(outboundEmail.recipientEmail().contains("resident@community.com"),
+                "Should reply to the original sender");
+            assertTrue(outboundEmail.subject().contains("Re:") || outboundEmail.subject().contains("elevator"),
+                "Subject should indicate this is a reply or contain original topic");
+        });
+    }
+
+    @Test
+    public void red_shouldCheckActiveInquiryWhenNoMessageIdProvidedAndAskForConfirmation() {
+        // RED: When board member asks to send email without specifying message ID,
+        // agent should check active inquiry and ask for confirmation with inquiry details
+        
+        // Arrange: Set up an active inquiry first
+        String activeEmailId = "email-active-inquiry-456";
+        Email activeInquiry = Email.create(
+            activeEmailId,
+            "tenant@building.com",
+            "Heating broken in apartment 12A",
+            "My heating has been broken for 3 days. The temperature is only 15 degrees."
+        );
+        
+        // Set this email as the active inquiry
+        componentClient.forKeyValueEntity(ACTIVE_INQUIRY_ENTITY_ID)
+            .method(ActiveInquiryEntity::setActiveInquiry)
+            .invoke(activeEmailId);
+        
+        // Hydrate the email entity so agent can access details
+        hydrateEntityAndPublishToView(activeInquiry, activeEmailId);
+        
+        // Wait for active inquiry to be set
+        Awaitility.await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            String currentActiveInquiry = componentClient.forKeyValueEntity(ACTIVE_INQUIRY_ENTITY_ID)
+                .method(ActiveInquiryEntity::getActiveInquiryEmailId)
+                .invoke();
+            assertEquals(activeEmailId, currentActiveInquiry, "Active inquiry should be set");
+        });
+        
+        // Act: Board member asks to send email without specifying message ID
+        String boardMemberMessage = "@assistant send email to tenant@building.com saying heating will be fixed today";
+        String sessionId = "board-session-inquiry-check";
+        
+        String response = invokeAgentAndGetResponse(sessionId, boardMemberMessage);
+        
+        // Assert: Agent should ask for confirmation about the active inquiry
+        assertNotNull(response, "Agent should respond with confirmation question");
+        assertFalse(response.isBlank(), "Response should have content");
+        
+        // Response should mention the active inquiry and ask for confirmation
+        String lowerResponse = response.toLowerCase();
+        assertTrue(lowerResponse.contains("heating") || lowerResponse.contains("apartment") || lowerResponse.contains("12a"),
+            "Should mention details from active inquiry. Got: " + response);
+        assertTrue(lowerResponse.contains("confirm") || lowerResponse.contains("about") || lowerResponse.contains("regarding") || lowerResponse.contains("?"),
+            "Should ask for confirmation. Got: " + response);
+        
+        // No OutboundEmailEntity should be created yet (awaiting confirmation)
+        // Check by verifying the entity state is empty (null recipients)
+        var outboundEmail = componentClient.forEventSourcedEntity(OUTBOUND_EMAIL_ENTITY_ID)
+            .method(OutboundEmailEntity::getDraft)
+            .invoke();
+        assertNull(outboundEmail.recipientEmail(), 
+            "OutboundEmailEntity should not have recipient set before confirmation. Got: " + outboundEmail.recipientEmail());
+    }
+
+    @Test
+    public void red_shouldSendEmailAfterUserConfirmsActiveInquiry() {
+        // RED: When user confirms they want to send email about active inquiry,
+        // agent should remember the original request and proceed with email creation
+        // using session memory to track the confirmation flow
+        
+        // Arrange: Set up an active inquiry and get to confirmation state first
+        String activeEmailId = "email-confirm-flow-789";
+        Email activeInquiry = Email.create(
+            activeEmailId,
+            "resident@building.com",
+            "Parking violation in spot #15",
+            "Someone has been parking in my assigned spot for 2 days."
+        );
+        
+        // Set this email as the active inquiry
+        componentClient.forKeyValueEntity(ACTIVE_INQUIRY_ENTITY_ID)
+            .method(ActiveInquiryEntity::setActiveInquiry)
+            .invoke(activeEmailId);
+        
+        // Hydrate the email entity so agent can access details
+        hydrateEntityAndPublishToView(activeInquiry, activeEmailId);
+        
+        // Wait for active inquiry to be set
+        Awaitility.await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            String currentActiveInquiry = componentClient.forKeyValueEntity(ACTIVE_INQUIRY_ENTITY_ID)
+                .method(ActiveInquiryEntity::getActiveInquiryEmailId)
+                .invoke();
+            assertEquals(activeEmailId, currentActiveInquiry, "Active inquiry should be set");
+        });
+        
+        // First, trigger the confirmation question
+        String sessionId = "board-session-confirm-flow";
+        String initialMessage = "@assistant send email to resident@building.com saying parking violation has been resolved";
+        
+        String confirmationResponse = invokeAgentAndGetResponse(sessionId, initialMessage);
+        
+        // Verify we got a confirmation question
+        assertNotNull(confirmationResponse);
+        assertTrue(confirmationResponse.toLowerCase().contains("parking") || confirmationResponse.toLowerCase().contains("confirm"),
+            "Should ask for confirmation about parking inquiry");
+        
+        // Act: User confirms they want to send email about the active inquiry
+        String confirmationMessage = "yes, that's correct";
+        
+        String finalResponse = invokeAgentAndGetResponse(sessionId, confirmationMessage);
+        
+        // Assert: Agent should now create the OutboundEmailEntity with thread reference to active inquiry
+        assertNotNull(finalResponse, "Agent should respond after confirmation");
+        assertFalse(finalResponse.isBlank(), "Response should have content");
+        
+        // Agent should have created outbound email with active inquiry as thread reference
+        Awaitility.await().atMost(30, TimeUnit.SECONDS).untilAsserted(() -> {
+            var outboundEmail = componentClient.forEventSourcedEntity(OUTBOUND_EMAIL_ENTITY_ID)
+                .method(OutboundEmailEntity::getDraft)
+                .invoke();
+                
+            assertNotNull(outboundEmail, "Agent should have created outbound email after confirmation");
+            assertEquals("resident@building.com", outboundEmail.recipientEmail(),
+                "Should send to requested recipient");
+            assertEquals(activeEmailId, outboundEmail.originalCaseId(),
+                "Should use active inquiry as thread reference for proper Gmail threading");
+            assertTrue(outboundEmail.subject().toLowerCase().contains("parking") ||
+                       outboundEmail.body().toLowerCase().contains("parking") ||
+                       outboundEmail.body().toLowerCase().contains("resolved"),
+                "Email should contain parking resolution information");
         });
     }
 }
